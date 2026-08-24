@@ -1,8 +1,11 @@
 -- Graphics Studio schema. Run once in the new Supabase project's SQL Editor.
--- RLS is intentionally left off both tables (default deny for the anon key)
--- — all access goes through the service-role client in lib/supabase/db.ts,
--- gated by proxy.ts's auth check, same pattern as adsbyshoaib.com's
--- business dashboard.
+-- RLS is enabled with NO policies on both tables — this is default-deny for
+-- the anon/authenticated keys (which ship in the browser bundle), while the
+-- service-role client in lib/supabase/db.ts bypasses RLS entirely and does
+-- all real data access, gated by proxy.ts's auth check. Same pattern as
+-- adsbyshoaib.com's business dashboard. Do NOT add anon/authenticated
+-- policies later without a real reason — the app was built assuming the
+-- anon key can reach nothing.
 
 create extension if not exists "pgcrypto";
 
@@ -42,6 +45,9 @@ create table if not exists generations (
 
 create index if not exists generations_brand_id_idx on generations(brand_id);
 create index if not exists generations_batch_id_idx on generations(batch_id);
+
+alter table brands enable row level security;
+alter table generations enable row level security;
 
 -- Storage buckets (create these in the Storage tab if the SQL editor's
 -- storage.buckets insert is blocked by your project's policies):
