@@ -1,1 +1,22 @@
 @AGENTS.md
+
+# Graphics Studio
+
+Internal tool (not SaaS) for generating on-brand client graphics via AI image
+APIs. Completely separate from the adsbyshoaib.com repo/Vercel/Supabase —
+never share credentials or deploy targets between them.
+
+**Read `docs/PLAN.md` first** — it's the full build plan: architecture,
+two-track design (Creative vs. Asset-Locked), data model, and build order.
+Follow its phase order; don't build Phase 3+ features before 1-2 are solid.
+
+Key rules:
+- Single/small-team internal tool: one service-role Supabase client
+  (`lib/supabase/db.ts`) for all data access, gated by `proxy.ts`'s auth
+  check — not per-table RLS. Invite-only auth, no public sign-up page.
+- Asset-Locked track (real photos: property/product) must never let an AI
+  model regenerate the actual photographed object — composite the real
+  pixels in with `sharp`, AI only supplies the surrounding frame/background.
+- Model calls live behind a shared interface in `lib/image-providers/` so
+  Nano Banana Pro and GPT Image are interchangeable per-generation, not
+  hardcoded to one vendor.

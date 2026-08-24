@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Graphics Studio
 
-## Getting Started
+Internal tool: pick a client brand, describe what's needed, get back on-brand,
+multi-size, ready-to-post graphics. See `docs/PLAN.md` for the full build plan
+and reasoning.
 
-First, run the development server:
+Deliberately separate from adsbyshoaib.com — its own repo, own Vercel project,
+own Supabase project — so it never competes with that site's usage.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Setup
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Create a new Supabase project** (separate from adsbyshoaib.com's).
+2. In the SQL Editor, run `supabase-schema.sql`.
+3. In Storage, create two buckets: `logos` and `generations` (public read is
+   fine for both — these are marketing assets, not sensitive data).
+4. Copy `.env.local.example` to `.env.local` and fill in:
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Project
+     Settings → API
+   - `SUPABASE_SERVICE_ROLE_KEY` — same page, "service_role" secret
+5. **Create your login user**: Supabase dashboard → Authentication → Users →
+   Add user (email + password). This app has no public sign-up page on
+   purpose — invite-only.
+6. `npm run dev` and sign in at `/login`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Current status: Phase 1 (Foundation)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- [x] Auth-gated shell (everything requires login except `/login`)
+- [x] Brand Vault — create/edit/delete brand kits (logo, colors, font, voice)
+- [ ] Phase 2 — Creative Track: multi-size AI generation (Nano Banana Pro /
+      GPT Image), copy generation, results gallery
+- [ ] Phase 3 — Asset-Locked Track: real photo compositing for real estate/
+      product work
+- [ ] Phase 4 — Rare identity assets (mood board, business card, letterhead)
+- [ ] Deferred — print/billboard upscaling, auto-posting to Meta/LinkedIn
 
-## Learn More
+## Stack
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js (App Router) + TypeScript + Tailwind CSS v4 + Supabase (Postgres +
+Storage + Auth), same conventions as adsbyshoaib.com's dashboard: a
+service-role client (`lib/supabase/db.ts`) does all data access, gated by
+`proxy.ts`'s auth check rather than per-table RLS policies — appropriate for
+a single/small-team internal tool, not a multi-tenant product.
