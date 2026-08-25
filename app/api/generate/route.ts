@@ -78,10 +78,9 @@ export async function POST(request: Request) {
     const prompt = buildImagePrompt(brand.name, colors, brand.voice_notes, copy);
     const batchId = crypto.randomUUID();
 
-    // Only Nano Banana can use these (see gptImage.ts) — skip the fetch/
-    // base64 work entirely for the other provider.
-    const referenceImages =
-      provider === "nano-banana" ? await loadReferenceImagesAsBase64(brandId) : [];
+    // Both providers can use these now: Nano Banana via inlineData parts,
+    // GPT Image via /v1/images/edits (see their respective files).
+    const referenceImages = await loadReferenceImagesAsBase64(brandId);
 
     const results = await Promise.all(
       placements.map(async (placement) => {

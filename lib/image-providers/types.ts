@@ -15,9 +15,10 @@ export type GenerateImageInput = {
   tier: Tier;
   placement: Placement;
   /** Existing client posts/graphics for this brand, for style consistency.
-   *  Only Nano Banana's generateContent actually accepts inline reference
-   *  images alongside the prompt — GPT Image's basic generations endpoint
-   *  is text-only, so gptImage.ts ignores this. */
+   *  Nano Banana takes these as inline parts alongside the prompt on the
+   *  same generateContent call; GPT Image routes to /v1/images/edits
+   *  instead of /v1/images/generations when this is non-empty, since only
+   *  the edits endpoint accepts input images. */
   referenceImages?: { base64: string; mimeType: string }[];
 };
 
