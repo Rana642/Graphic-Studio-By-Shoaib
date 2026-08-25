@@ -19,7 +19,7 @@ export default async function GenerateBrandPage({
       <Link href={`/brands/${id}`} className="text-sm text-muted hover:text-foreground">
         ← {brand.name}
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">Generate for {brand.name}</h1>
+      <h1 className="mt-2 font-serif italic text-3xl tracking-tight">Generate for {brand.name}</h1>
       <p className="mt-2 text-muted">
         Locked to this brand's colors, font, and voice — nothing here can drift to another
         brand's identity.

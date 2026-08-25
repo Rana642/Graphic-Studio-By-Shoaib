@@ -1,13 +1,23 @@
 @import "tailwindcss";
 
+/*
+ * Ads by Shoaib brand tokens (matches app/globals.css on the main site) —
+ * this tool is a continuation of that identity, not a separate one.
+ * Cloud/Ink/Citrus/Cobalt, same hex values. Unlike the public marketing
+ * site's 8%/2% accent budget, this internal tool uses Citrus as the
+ * primary action color directly (same as the main site's own dashboard
+ * does for its "Sign in" button) — ink text on citrus passes contrast,
+ * citrus text would not.
+ */
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
-  --muted: #71717a;
-  --border: #e4e4e7;
+  --background: #fafafa; /* Cloud */
+  --foreground: #0f0f14; /* Ink */
+  --muted: rgba(15, 15, 20, 0.6);
+  --border: rgba(15, 15, 20, 0.1);
   --surface: #ffffff;
-  --accent: #4f46e5;
-  --accent-foreground: #ffffff;
+  --accent: #eab308; /* Citrus */
+  --accent-foreground: #0f0f14; /* Ink — citrus bg needs dark text */
+  --cobalt: #1e40af;
   --danger: #dc2626;
 }
 
@@ -19,12 +29,19 @@
   --color-surface: var(--surface);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-cobalt: var(--cobalt);
   --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
 }

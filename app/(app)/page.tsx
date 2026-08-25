@@ -9,7 +9,9 @@ export default async function HomePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Graphics Studio</h1>
+      <h1 className="font-serif italic text-3xl tracking-tight">
+        Graphic Studio<span className="text-accent not-italic font-sans font-bold">.</span>
+      </h1>
       <p className="mt-2 text-muted">
         {brands.length === 0
           ? "No brands yet — add one to start generating on-brand graphics."

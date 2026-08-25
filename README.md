@@ -1,11 +1,14 @@
-# Graphics Studio
+# Graphic Studio by Shoaib
 
 Internal tool: pick a client brand, describe what's needed, get back on-brand,
 multi-size, ready-to-post graphics. See `docs/PLAN.md` for the full build plan
 and reasoning.
 
 Deliberately separate from adsbyshoaib.com — its own repo, own Vercel project,
-own Supabase project — so it never competes with that site's usage.
+own Supabase project — so it never competes with that site's usage. Branding
+(Cloud/Ink/Citrus/Cobalt, Instrument Serif + Geist) carries over from
+adsbyshoaib.com on purpose — this is a continuation of that identity, not a
+separate one.
 
 ## Setup
 
@@ -22,12 +25,13 @@ own Supabase project — so it never competes with that site's usage.
    purpose — invite-only.
 6. `npm run dev` and sign in at `/login`.
 
-## Current status: Phase 1 (Foundation)
+## Current status
 
-- [x] Auth-gated shell (everything requires login except `/login`)
-- [x] Brand Vault — create/edit/delete brand kits (logo, colors, font, voice)
-- [ ] Phase 2 — Creative Track: multi-size AI generation (Nano Banana Pro /
-      GPT Image), copy generation, results gallery
+- [x] Phase 1 — Auth-gated shell, Brand Vault (create/edit/delete brand kits)
+- [x] Phase 2 — Creative Track: multi-size AI generation (Nano Banana Pro /
+      GPT Image, draft/standard/premium tiers), copywriting, results gallery.
+      Pipeline verified end-to-end against real API keys; actual image output
+      still untested pending billing credits on both provider accounts.
 - [ ] Phase 3 — Asset-Locked Track: real photo compositing for real estate/
       product work
 - [ ] Phase 4 — Rare identity assets (mood board, business card, letterhead)

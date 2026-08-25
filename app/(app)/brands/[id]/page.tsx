@@ -19,7 +19,7 @@ export default async function BrandDetailPage({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">{brand.name}</h1>
+        <h1 className="font-serif italic text-3xl tracking-tight">{brand.name}</h1>
         <div className="flex gap-3">
           <Link
             href={`/brands/${id}/generate`}

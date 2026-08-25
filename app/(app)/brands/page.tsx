@@ -9,7 +9,9 @@ export default async function BrandsPage() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Brands</h1>
+        <h1 className="font-serif italic text-3xl tracking-tight">
+          Brands<span className="text-accent not-italic font-sans font-bold">.</span>
+        </h1>
         <Link
           href="/brands/new"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"

@@ -6,8 +6,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-full flex-col">
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/" className="font-semibold tracking-tight">
-            Graphics Studio
+          <Link href="/" className="font-serif italic text-xl tracking-tight">
+            graphic studio by shoaib
+            <span className="text-accent not-italic font-sans font-bold">.</span>
           </Link>
           <nav className="flex items-center gap-6 text-sm text-muted">
             <Link href="/brands" className="hover:text-foreground transition-colors">

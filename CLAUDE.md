@@ -1,10 +1,19 @@
 @AGENTS.md
 
-# Graphics Studio
+# Graphic Studio by Shoaib
 
 Internal tool (not SaaS) for generating on-brand client graphics via AI image
 APIs. Completely separate from the adsbyshoaib.com repo/Vercel/Supabase —
 never share credentials or deploy targets between them.
+
+**Branding is a deliberate continuation of adsbyshoaib.com's identity, not a
+separate one** — same Cloud/Ink/Citrus/Cobalt tokens (`app/globals.css`),
+same Instrument Serif + Geist pairing. Unlike the public marketing site's
+8%/2% Citrus/Cobalt accent budget, this internal tool uses Citrus directly as
+the primary action color (`--accent`/`--accent-foreground`), matching how
+adsbyshoaib.com's own dashboard already treats its primary buttons — ink text
+on citrus passes contrast, citrus text on cloud does not. If adsbyshoaib.com's
+tokens ever change, update these to match.
 
 **Read `docs/PLAN.md` first** — it's the full build plan: architecture,
 two-track design (Creative vs. Asset-Locked), data model, and build order.
