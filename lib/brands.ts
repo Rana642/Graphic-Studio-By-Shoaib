@@ -10,6 +10,15 @@ export type Brand = {
   accent_hex: string | null;
   font_family: string | null;
   voice_notes: string | null;
+  about: string | null;
+  services: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  website_url: string | null;
+  instagram_handle: string | null;
+  facebook_handle: string | null;
+  linkedin_handle: string | null;
+  tiktok_handle: string | null;
   created_at: string;
 };
 
@@ -21,6 +30,15 @@ export type BrandInput = {
   accent_hex?: string | null;
   font_family?: string | null;
   voice_notes?: string | null;
+  about?: string | null;
+  services?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  website_url?: string | null;
+  instagram_handle?: string | null;
+  facebook_handle?: string | null;
+  linkedin_handle?: string | null;
+  tiktok_handle?: string | null;
 };
 
 export async function listBrands(): Promise<Brand[]> {

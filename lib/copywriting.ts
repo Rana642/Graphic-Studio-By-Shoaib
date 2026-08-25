@@ -8,7 +8,15 @@ const SYSTEM_PROMPT =
   "You are an expert digital marketing copywriter. Convert the given brand and offer into a short, punchy visual hook for a graphic. Output strict JSON with exactly three keys: label (max 3 words, e.g. \"NEW ARRIVAL\"), hook (max 6 words, the main headline), cta (max 3 words, e.g. \"Shop Now\"). Keep it extremely concise — this text gets printed directly onto an image, so short is critical.";
 
 function userPrompt(brand: Brand, offer: string) {
-  return `Brand: ${brand.name}\nVoice/vibe: ${brand.voice_notes || "not specified"}\nOffer or message: ${offer}`;
+  return [
+    `Brand: ${brand.name}`,
+    brand.about ? `What the brand does: ${brand.about}` : "",
+    brand.services ? `Products/services: ${brand.services}` : "",
+    `Voice/vibe: ${brand.voice_notes || "not specified"}`,
+    `Offer or message: ${offer}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function copyViaGemini(brand: Brand, offer: string): Promise<Copy> {

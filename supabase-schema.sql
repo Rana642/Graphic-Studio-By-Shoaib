@@ -18,8 +18,36 @@ create table if not exists brands (
   accent_hex text,
   font_family text,
   voice_notes text,
+  -- Full brand context (2026-08-25) — what the brand does, its services,
+  -- and its real contact/social details. Feeds copywriting (fuller context
+  -- than voice_notes alone) and gets appended as a footer line on generated
+  -- graphics when present. Also the groundwork for a future social-media
+  -- content calendar (brand awareness / product / event posts, etc.) —
+  -- that calendar isn't built yet, but needs this data to exist first.
+  about text,
+  services text,
+  contact_phone text,
+  contact_email text,
+  website_url text,
+  instagram_handle text,
+  facebook_handle text,
+  linkedin_handle text,
+  tiktok_handle text,
   created_at timestamptz not null default now()
 );
+
+-- Safe to run against an already-existing brands table (create table above
+-- is only for a fresh setup and won't add columns to one that already
+-- exists) — this is the actual migration Shoaib needs to run.
+alter table brands add column if not exists about text;
+alter table brands add column if not exists services text;
+alter table brands add column if not exists contact_phone text;
+alter table brands add column if not exists contact_email text;
+alter table brands add column if not exists website_url text;
+alter table brands add column if not exists instagram_handle text;
+alter table brands add column if not exists facebook_handle text;
+alter table brands add column if not exists linkedin_handle text;
+alter table brands add column if not exists tiktok_handle text;
 
 create type generation_track as enum ('creative', 'asset_locked');
 

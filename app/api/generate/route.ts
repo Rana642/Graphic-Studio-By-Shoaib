@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUser } from "@/lib/supabase/auth";
-import { getBrand } from "@/lib/brands";
+import { getBrand, type Brand } from "@/lib/brands";
 import { getPlacement } from "@/lib/placements";
 import { generateImage, type Provider, type Tier } from "@/lib/image-providers";
 import { generateCopy } from "@/lib/copywriting";
@@ -16,19 +16,38 @@ const bodySchema = z.object({
   placementIds: z.array(z.string()).min(1).max(6),
 });
 
+/** Contact/social line shown as a small footer band on generated graphics —
+ *  only the fields Shoaib actually filled in, never invented placeholders. */
+function buildFooterLine(brand: Brand): string | null {
+  const parts = [
+    brand.website_url,
+    brand.contact_phone,
+    brand.contact_email,
+    brand.instagram_handle,
+    brand.facebook_handle,
+    brand.linkedin_handle,
+    brand.tiktok_handle,
+  ].filter((v): v is string => Boolean(v && v.trim()));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function buildImagePrompt(
-  brandName: string,
+  brand: Brand,
   colors: string[],
-  voice: string | null,
   copy: { label: string; hook: string; cta: string }
 ) {
+  const footer = buildFooterLine(brand);
   return [
-    `Professional marketing graphic for the brand "${brandName}".`,
+    `Professional marketing graphic for the brand "${brand.name}".`,
+    brand.about ? `About the brand: ${brand.about}.` : "",
     `Strict color palette: ${colors.filter(Boolean).join(", ")}.`,
-    voice ? `Visual style/vibe: ${voice}.` : "",
+    brand.voice_notes ? `Visual style/vibe: ${brand.voice_notes}.` : "",
     `Print the small badge label "${copy.label.toUpperCase()}" near the top.`,
     `Render the bold primary headline "${copy.hook}" with strong visual contrast, centered.`,
     `Place the call-to-action "${copy.cta.toUpperCase()}" inside a solid button-style shape near the bottom.`,
+    footer
+      ? `In a thin footer band at the very bottom edge, print this contact line in small, clean text: "${footer}".`
+      : "",
     "Clean, premium layout. Do not add random decorative shapes, extra text, or misspelled words.",
   ]
     .filter(Boolean)
@@ -75,7 +94,7 @@ export async function POST(request: Request) {
     const colors = [brand.primary_hex, brand.secondary_hex, brand.accent_hex].filter(
       (c): c is string => Boolean(c)
     );
-    const prompt = buildImagePrompt(brand.name, colors, brand.voice_notes, copy);
+    const prompt = buildImagePrompt(brand, colors, copy);
     const batchId = crypto.randomUUID();
 
     // Both providers can use these now: Nano Banana via inlineData parts,

@@ -132,6 +132,146 @@ export default function BrandForm({
         />
       </div>
 
+      <div className="border-t border-border pt-5">
+        <p className="mb-4 font-mono uppercase text-xs tracking-widest text-muted">
+          About this brand
+        </p>
+        <p className="mb-4 text-xs text-muted">
+          Feeds copywriting with real context, not just tone — this is also the groundwork for
+          brand-specific content planning later (awareness posts, product posts, event posts…).
+        </p>
+        <div className="space-y-5">
+          <div>
+            <label htmlFor="about" className={labelClasses}>
+              What does this brand do?
+            </label>
+            <textarea
+              id="about"
+              name="about"
+              rows={2}
+              placeholder="e.g. Real estate developer building housing societies in DHA Multan."
+              defaultValue={brand?.about ?? ""}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="services" className={labelClasses}>
+              Products / services offered
+            </label>
+            <textarea
+              id="services"
+              name="services"
+              rows={2}
+              placeholder="e.g. Plot files, custom home construction, rental management."
+              defaultValue={brand?.services ?? ""}
+              className={inputClasses}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <p className="mb-4 font-mono uppercase text-xs tracking-widest text-muted">
+          Contact &amp; social
+        </p>
+        <p className="mb-4 text-xs text-muted">
+          Shown as a footer line on generated graphics when filled in.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="contact_phone" className={labelClasses}>
+              Phone
+            </label>
+            <input
+              id="contact_phone"
+              name="contact_phone"
+              type="text"
+              placeholder="0300 1234567"
+              defaultValue={brand?.contact_phone ?? ""}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="contact_email" className={labelClasses}>
+              Email
+            </label>
+            <input
+              id="contact_email"
+              name="contact_email"
+              type="email"
+              placeholder="hello@brand.com"
+              defaultValue={brand?.contact_email ?? ""}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="website_url" className={labelClasses}>
+              Website
+            </label>
+            <input
+              id="website_url"
+              name="website_url"
+              type="url"
+              placeholder="https://…"
+              defaultValue={brand?.website_url ?? ""}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="instagram_handle" className={labelClasses}>
+              Instagram
+            </label>
+            <input
+              id="instagram_handle"
+              name="instagram_handle"
+              type="text"
+              placeholder="@brandname"
+              defaultValue={brand?.instagram_handle ?? ""}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="facebook_handle" className={labelClasses}>
+              Facebook
+            </label>
+            <input
+              id="facebook_handle"
+              name="facebook_handle"
+              type="text"
+              placeholder="@brandname"
+              defaultValue={brand?.facebook_handle ?? ""}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="linkedin_handle" className={labelClasses}>
+              LinkedIn
+            </label>
+            <input
+              id="linkedin_handle"
+              name="linkedin_handle"
+              type="text"
+              placeholder="@brandname"
+              defaultValue={brand?.linkedin_handle ?? ""}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="tiktok_handle" className={labelClasses}>
+              TikTok
+            </label>
+            <input
+              id="tiktok_handle"
+              name="tiktok_handle"
+              type="text"
+              placeholder="@brandname"
+              defaultValue={brand?.tiktok_handle ?? ""}
+              className={inputClasses}
+            />
+          </div>
+        </div>
+      </div>
+
       {state?.error && (
         <p className="rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
           {state.error}
