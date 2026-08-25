@@ -6,6 +6,7 @@ import { getPlacement } from "@/lib/placements";
 import { generateImage, type Provider, type Tier } from "@/lib/image-providers";
 import { generateCopy } from "@/lib/copywriting";
 import { insertGeneration, uploadGeneratedImage } from "@/lib/generations";
+import { loadReferenceImagesAsBase64 } from "@/lib/references";
 
 const bodySchema = z.object({
   brandId: z.string().uuid(),
@@ -77,6 +78,11 @@ export async function POST(request: Request) {
     const prompt = buildImagePrompt(brand.name, colors, brand.voice_notes, copy);
     const batchId = crypto.randomUUID();
 
+    // Only Nano Banana can use these (see gptImage.ts) — skip the fetch/
+    // base64 work entirely for the other provider.
+    const referenceImages =
+      provider === "nano-banana" ? await loadReferenceImagesAsBase64(brandId) : [];
+
     const results = await Promise.all(
       placements.map(async (placement) => {
         try {
@@ -84,6 +90,7 @@ export async function POST(request: Request) {
             prompt,
             tier: tier as Tier,
             placement,
+            referenceImages,
           });
           const imageUrl = await uploadGeneratedImage(
             brandId,

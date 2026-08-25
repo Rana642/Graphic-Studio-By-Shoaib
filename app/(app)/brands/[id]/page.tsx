@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getBrand } from "@/lib/brands";
+import { listReferencesForBrand } from "@/lib/references";
 import { updateBrandAction, deleteBrandAction } from "@/lib/actions/brands";
 import BrandForm from "@/components/BrandForm";
 import DeleteButton from "@/components/DeleteButton";
+import ReferenceImages from "@/components/ReferenceImages";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,8 @@ export default async function BrandDetailPage({
   const { id } = await params;
   const brand = await getBrand(id);
   if (!brand) notFound();
+
+  const references = await listReferencesForBrand(id);
 
   return (
     <div>
@@ -38,6 +42,9 @@ export default async function BrandDetailPage({
       </div>
       <div className="mt-8">
         <BrandForm brand={brand} action={updateBrandAction.bind(null, id)} />
+      </div>
+      <div className="mt-12 max-w-2xl border-t border-border pt-8">
+        <ReferenceImages brandId={id} references={references} />
       </div>
     </div>
   );

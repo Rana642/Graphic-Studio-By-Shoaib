@@ -24,13 +24,31 @@ export const nanoBananaProvider: ImageProviderClient = {
 
     const { model, estCostUsd } = MODEL_BY_TIER[input.tier];
 
+    // Reference images go in first as inlineData parts, with a short lead-in
+    // line, then the real prompt — this ordering + framing is what makes
+    // Gemini treat them as style context rather than "the subject to edit."
+    const hasReferences = (input.referenceImages?.length ?? 0) > 0;
+    const requestParts = [
+      ...(hasReferences
+        ? [
+            {
+              text: "The following image(s) are existing brand graphics — match their visual style (color usage, layout feel, typography treatment) in what you generate next:",
+            },
+            ...input.referenceImages!.map((ref) => ({
+              inlineData: { mimeType: ref.mimeType, data: ref.base64 },
+            })),
+          ]
+        : []),
+      { text: input.prompt },
+    ];
+
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: input.prompt }] }],
+          contents: [{ parts: requestParts }],
           generationConfig: {
             responseModalities: ["IMAGE"],
             imageConfig: { aspectRatio: input.placement.geminiAspectRatio },

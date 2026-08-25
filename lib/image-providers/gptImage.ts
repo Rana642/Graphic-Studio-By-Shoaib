@@ -24,6 +24,11 @@ export const gptImageProvider: ImageProviderClient = {
   async generate(input: GenerateImageInput): Promise<GenerateImageResult> {
     if (!API_KEY) throw new Error("OPENAI_API_KEY is not configured.");
 
+    // input.referenceImages is intentionally unused here — the basic
+    // /v1/images/generations endpoint is text-only. Style-consistency via
+    // reference images currently only works on the Nano Banana provider
+    // (see nanoBanana.ts). If GPT Image support is needed later, that's
+    // OpenAI's /v1/images/edits endpoint instead, a different request shape.
     const { model, quality, estCostUsd } = CONFIG_BY_TIER[input.tier];
 
     const res = await fetch("https://api.openai.com/v1/images/generations", {

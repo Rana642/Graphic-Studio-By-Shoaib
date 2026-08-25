@@ -46,10 +46,24 @@ create table if not exists generations (
 create index if not exists generations_brand_id_idx on generations(brand_id);
 create index if not exists generations_batch_id_idx on generations(batch_id);
 
+-- Existing client posts/graphics uploaded per brand, so new generations can
+-- be conditioned on them for style consistency (see lib/image-providers/).
+create table if not exists brand_references (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid not null references brands(id) on delete cascade,
+  image_url text not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists brand_references_brand_id_idx on brand_references(brand_id);
+
 alter table brands enable row level security;
 alter table generations enable row level security;
+alter table brand_references enable row level security;
 
 -- Storage buckets (create these in the Storage tab if the SQL editor's
 -- storage.buckets insert is blocked by your project's policies):
--- - "logos"       — brand logo uploads
+-- - "logos"       — brand logo uploads AND reference images (path:
+--                    {brandId}/references/... for the latter)
 -- - "generations" — generated/composited output images
