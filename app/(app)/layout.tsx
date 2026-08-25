@@ -14,6 +14,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/brands" className="hover:text-foreground transition-colors">
               Brands
             </Link>
+            <Link href="/costs" className="hover:text-foreground transition-colors">
+              Costs
+            </Link>
             <form action={signOutAction}>
               <button type="submit" className="hover:text-foreground transition-colors">
                 Sign out

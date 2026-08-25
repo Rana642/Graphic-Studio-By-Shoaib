@@ -27,6 +27,12 @@ export default async function BrandDetailPage({
           >
             Generate
           </Link>
+          <Link
+            href={`/brands/${id}/costs`}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-background"
+          >
+            Costs
+          </Link>
           <DeleteButton action={deleteBrandAction.bind(null, id)} />
         </div>
       </div>
