@@ -15,15 +15,31 @@ type ResultRow = {
 };
 
 type ApiResponse = {
-  copy?: { label: string; hook: string; cta: string };
   results?: ResultRow[];
   error?: string;
 };
 
 const REGULAR_TRACK_IDS = ["ig_feed", "ig_story", "meta_ad"];
 
-export default function GenerateForm({ brandId }: { brandId: string }) {
-  const [offer, setOffer] = useState("");
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+export default function SubjectEditForm({
+  brands,
+}: {
+  brands: { id: string; name: string }[];
+}) {
+  const [subjectImage, setSubjectImage] = useState<
+    { base64: string; mimeType: string; previewUrl: string } | null
+  >(null);
+  const [sceneDescription, setSceneDescription] = useState("");
+  const [brandId, setBrandId] = useState<string>("");
   const [provider, setProvider] = useState<"nano-banana" | "gpt-image">("nano-banana");
   const [tier, setTier] = useState<"draft" | "standard" | "premium">("standard");
   const [placementIds, setPlacementIds] = useState<string[]>(REGULAR_TRACK_IDS);
@@ -37,17 +53,36 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
     );
   };
 
+  const onPickSubjectImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setSubjectImage({
+      base64: await fileToBase64(file),
+      mimeType: file.type || "image/png",
+      previewUrl: URL.createObjectURL(file),
+    });
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!subjectImage) return;
     setLoading(true);
     setError(null);
     setResponse(null);
 
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/generate-subject-edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId, offer, provider, tier, placementIds }),
+        body: JSON.stringify({
+          subjectImage: { base64: subjectImage.base64, mimeType: subjectImage.mimeType },
+          sceneDescription,
+          provider,
+          tier,
+          placementIds,
+          ...(brandId ? { brandId } : {}),
+        }),
       });
       const json: ApiResponse = await res.json();
       if (!res.ok) {
@@ -62,10 +97,6 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
     }
   };
 
-  const estTotal =
-    placementIds.length *
-    { draft: 0.02, standard: 0.045, premium: 0.15 }[tier];
-
   const onEnhanced = (resultId: string, upscaledImageUrl: string) => {
     setResponse((prev) =>
       prev?.results
@@ -79,22 +110,64 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
     );
   };
 
+  const estTotal =
+    placementIds.length *
+    { draft: 0.02, standard: 0.045, premium: 0.15 }[tier];
+
   return (
     <div className="max-w-2xl">
       <form onSubmit={onSubmit} className="space-y-5">
         <div>
-          <label htmlFor="offer" className="mb-1.5 block text-sm text-muted">
-            What's the campaign / offer?
+          <label className="mb-1.5 block text-sm text-muted">
+            Subject photo (person or product — this stays visually unchanged)
+          </label>
+          <input type="file" accept="image/*" required={!subjectImage} onChange={onPickSubjectImage} className="text-sm" />
+          {subjectImage && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={subjectImage.previewUrl}
+              alt="Subject"
+              className="mt-3 h-32 w-32 rounded-lg border border-border object-cover"
+            />
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="sceneDescription" className="mb-1.5 block text-sm text-muted">
+            New scene / background
           </label>
           <textarea
-            id="offer"
+            id="sceneDescription"
             required
-            rows={3}
-            value={offer}
-            onChange={(e) => setOffer(e.target.value)}
-            placeholder="e.g. 30% off leather boots this weekend only"
+            rows={4}
+            value={sceneDescription}
+            onChange={(e) => setSceneDescription(e.target.value)}
+            placeholder="e.g. Moody industrial workshop wall with vintage brass gauges and pipes, dramatic side lighting"
             className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
           />
+          <p className="mt-1.5 text-xs text-muted">
+            Only the background/scene changes — the subject in the photo above is preserved, not
+            redrawn.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="brandId" className="mb-1.5 block text-sm text-muted">
+            File under a brand (optional)
+          </label>
+          <select
+            id="brandId"
+            value={brandId}
+            onChange={(e) => setBrandId(e.target.value)}
+            className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
+          >
+            <option value="">None — standalone</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -150,7 +223,7 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
 
         <button
           type="submit"
-          disabled={loading || placementIds.length === 0}
+          disabled={loading || placementIds.length === 0 || !subjectImage}
           className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {loading
@@ -161,12 +234,6 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
 
       {response?.results && (
         <div className="mt-10">
-          {response.copy && (
-            <p className="mb-4 text-sm text-muted">
-              Copy: <span className="font-medium text-foreground">{response.copy.label}</span> ·{" "}
-              {response.copy.hook} · {response.copy.cta}
-            </p>
-          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {response.results.map((r) => (
               <div key={r.id} className="rounded-xl border border-border bg-surface p-3">

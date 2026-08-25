@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUser } from "@/lib/supabase/auth";
-import { getBrand, type Brand } from "@/lib/brands";
+import { getBrand } from "@/lib/brands";
 import { getPlacement } from "@/lib/placements";
-import { generateImage, type Provider, type Tier } from "@/lib/image-providers";
+import type { Provider, Tier } from "@/lib/image-providers";
 import { generateCopy } from "@/lib/copywriting";
-import { insertGeneration, uploadGeneratedImage } from "@/lib/generations";
 import { loadReferenceImagesAsBase64 } from "@/lib/references";
+import { buildImagePrompt } from "@/lib/prompt";
+import { runGenerationBatch } from "@/lib/generate-batch";
 
 const bodySchema = z.object({
   brandId: z.string().uuid(),
@@ -15,44 +16,6 @@ const bodySchema = z.object({
   tier: z.enum(["draft", "standard", "premium"]),
   placementIds: z.array(z.string()).min(1).max(6),
 });
-
-/** Contact/social line shown as a small footer band on generated graphics —
- *  only the fields Shoaib actually filled in, never invented placeholders. */
-function buildFooterLine(brand: Brand): string | null {
-  const parts = [
-    brand.website_url,
-    brand.contact_phone,
-    brand.contact_email,
-    brand.instagram_handle,
-    brand.facebook_handle,
-    brand.linkedin_handle,
-    brand.tiktok_handle,
-  ].filter((v): v is string => Boolean(v && v.trim()));
-  return parts.length > 0 ? parts.join(" · ") : null;
-}
-
-function buildImagePrompt(
-  brand: Brand,
-  colors: string[],
-  copy: { label: string; hook: string; cta: string }
-) {
-  const footer = buildFooterLine(brand);
-  return [
-    `Professional marketing graphic for the brand "${brand.name}".`,
-    brand.about ? `About the brand: ${brand.about}.` : "",
-    `Strict color palette: ${colors.filter(Boolean).join(", ")}.`,
-    brand.voice_notes ? `Visual style/vibe: ${brand.voice_notes}.` : "",
-    `Print the small badge label "${copy.label.toUpperCase()}" near the top.`,
-    `Render the bold primary headline "${copy.hook}" with strong visual contrast, centered.`,
-    `Place the call-to-action "${copy.cta.toUpperCase()}" inside a solid button-style shape near the bottom.`,
-    footer
-      ? `In a thin footer band at the very bottom edge, print this contact line in small, clean text: "${footer}".`
-      : "",
-    "Clean, premium layout. Do not add random decorative shapes, extra text, or misspelled words.",
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
 
 /**
  * The whole handler runs inside one try/catch — an uncaught throw here
@@ -95,53 +58,20 @@ export async function POST(request: Request) {
       (c): c is string => Boolean(c)
     );
     const prompt = buildImagePrompt(brand, colors, copy);
-    const batchId = crypto.randomUUID();
 
     // Both providers can use these now: Nano Banana via inlineData parts,
     // GPT Image via /v1/images/edits (see their respective files).
     const referenceImages = await loadReferenceImagesAsBase64(brandId);
 
-    const results = await Promise.all(
-      placements.map(async (placement) => {
-        try {
-          const image = await generateImage(provider as Provider, {
-            prompt,
-            tier: tier as Tier,
-            placement,
-            referenceImages,
-          });
-          const imageUrl = await uploadGeneratedImage(
-            brandId,
-            placement.id,
-            image.imageBase64,
-            image.mimeType
-          );
-          return await insertGeneration({
-            brand_id: brandId,
-            batch_id: batchId,
-            placement: placement.id,
-            model_used: image.modelUsed,
-            prompt_used: prompt,
-            copy_label: copy.label,
-            copy_hook: copy.hook,
-            copy_cta: copy.cta,
-            image_url: imageUrl,
-            est_cost_usd: image.estCostUsd,
-            status: "complete",
-          });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Unknown error";
-          return insertGeneration({
-            brand_id: brandId,
-            batch_id: batchId,
-            placement: placement.id,
-            prompt_used: prompt,
-            status: "failed",
-            error_message: message,
-          });
-        }
-      })
-    );
+    const { batchId, results } = await runGenerationBatch({
+      brandId,
+      prompt,
+      provider: provider as Provider,
+      tier: tier as Tier,
+      placements,
+      referenceImages,
+      copy,
+    });
 
     return NextResponse.json({ batchId, copy, results });
   } catch (err) {

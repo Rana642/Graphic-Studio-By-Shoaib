@@ -49,13 +49,16 @@ alter table brands add column if not exists facebook_handle text;
 alter table brands add column if not exists linkedin_handle text;
 alter table brands add column if not exists tiktok_handle text;
 
-create type generation_track as enum ('creative', 'asset_locked');
+create type generation_track as enum ('creative', 'asset_locked', 'subject_edit');
 
 create type generation_status as enum ('pending', 'complete', 'failed');
 
 create table if not exists generations (
   id uuid primary key default gen_random_uuid(),
-  brand_id uuid not null references brands(id) on delete cascade,
+  -- Nullable (2026-08-25): free-prompt generations aren't tied to any
+  -- brand. When brand_id is null, the generated image's storage path uses
+  -- "unbranded" instead of a brand id (see uploadGeneratedImage).
+  brand_id uuid references brands(id) on delete cascade,
   batch_id uuid not null default gen_random_uuid(),
   track generation_track not null default 'creative',
   placement text not null,
@@ -68,11 +71,44 @@ create table if not exists generations (
   est_cost_usd numeric(10, 4),
   status generation_status not null default 'pending',
   error_message text,
+  -- Enhancement (2026-08-25): a generated image can optionally be run
+  -- through an upscaler afterward (Topaz first, more providers later).
+  -- One enhancement slot per row — re-enhancing overwrites it rather than
+  -- keeping a history of attempts.
+  upscaled_image_url text,
+  upscale_provider text,
+  upscale_cost_usd numeric(10, 4),
+  upscaled_at timestamptz,
+  -- Which lib/asset-locked/templates/*.ts template made this row (only set
+  -- for track = 'asset_locked'; that track has no AI model_used since
+  -- there's no AI call at all, just deterministic sharp/resvg compositing).
+  template_id text,
   created_at timestamptz not null default now()
 );
 
 create index if not exists generations_brand_id_idx on generations(brand_id);
 create index if not exists generations_batch_id_idx on generations(batch_id);
+
+-- Migration for an already-existing generations table (2026-08-25): allow
+-- free-prompt generations with no brand. Safe to re-run.
+alter table generations alter column brand_id drop not null;
+
+-- Migration for an already-existing generations table (2026-08-25):
+-- upscale/enhancement columns. Safe to re-run.
+alter table generations add column if not exists upscaled_image_url text;
+alter table generations add column if not exists upscale_provider text;
+alter table generations add column if not exists upscale_cost_usd numeric(10, 4);
+alter table generations add column if not exists upscaled_at timestamptz;
+
+-- Migration for an already-existing generation_track enum (2026-08-25):
+-- Subject-Preserving Edit track (real person/product, AI-generated scene
+-- around them). Must run as its own statement — Postgres won't let a new
+-- enum value be used in the same transaction it was added in. Safe to re-run.
+alter type generation_track add value if not exists 'subject_edit';
+
+-- Migration for an already-existing generations table (2026-08-25):
+-- Asset-Locked Track's template id. Safe to re-run.
+alter table generations add column if not exists template_id text;
 
 -- Existing client posts/graphics uploaded per brand, so new generations can
 -- be conditioned on them for style consistency (see lib/image-providers/).

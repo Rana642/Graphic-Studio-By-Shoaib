@@ -14,6 +14,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/brands" className="hover:text-foreground transition-colors">
               Brands
             </Link>
+            <Link href="/generate" className="hover:text-foreground transition-colors">
+              Generate
+            </Link>
+            <Link href="/generate/subject" className="hover:text-foreground transition-colors">
+              Subject Edit
+            </Link>
+            <Link href="/generate/asset-locked" className="hover:text-foreground transition-colors">
+              Real Estate/Event
+            </Link>
             <Link href="/costs" className="hover:text-foreground transition-colors">
               Costs
             </Link>
