@@ -26,6 +26,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/batches" className="hover:text-foreground transition-colors">
               Batches
             </Link>
+            <Link href="/videos" className="hover:text-foreground transition-colors">
+              Videos
+            </Link>
             <Link href="/costs" className="hover:text-foreground transition-colors">
               Costs
             </Link>

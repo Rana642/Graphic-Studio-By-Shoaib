@@ -145,3 +145,24 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 create index if not exists generations_pending_batch_idx on generations(provider_job_id) where status = 'pending';
+-- Video Studio (2026-10-02): branded videos edited locally with video-use
+-- (lib/videos.ts, MCP studio_video_* tools). Safe to re-run.
+create table if not exists video_generations (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid references brands(id) on delete set null,
+  title text not null,
+  source_dir text not null,
+  edit_dir text not null,
+  status text not null default 'transcribed' check (status in ('transcribed', 'rendered', 'failed')),
+  source_minutes numeric(10, 2),
+  output_seconds numeric(10, 2),
+  output_path text,
+  output_url text,
+  est_cost_usd numeric(10, 4),
+  error text,
+  created_at timestamptz not null default now(),
+  rendered_at timestamptz
+);
+create index if not exists video_generations_brand_id_idx on video_generations(brand_id);
+alter table video_generations enable row level security;
+-- Storage bucket "videos" (public) is created by lib/videos.ts on first upload.

@@ -5,8 +5,8 @@ export const dynamic = "force-dynamic";
 
 export default async function CostsPage() {
   const summaries = await getCostSummaryByBrand();
-  const withGenerations = summaries.filter((s) => s.generationCount > 0);
-  const grandTotal = withGenerations.reduce((sum, s) => sum + s.totalCostUsd, 0);
+  const withGenerations = summaries.filter((s) => s.generationCount > 0 || s.videoCount > 0);
+  const grandTotal = withGenerations.reduce((sum, s) => sum + s.totalCostUsd + s.videoCostUsd, 0);
   const batchSaved = withGenerations.reduce((sum, s) => sum + s.batchSavedUsd, 0);
 
   return (
@@ -31,12 +31,13 @@ export default async function CostsPage() {
                   <th className="px-4 py-3 font-medium">Images generated</th>
                   <th className="px-4 py-3 font-medium">Total cost</th>
                   <th className="px-4 py-3 font-medium">Avg / image</th>
+                  <th className="px-4 py-3 font-medium">Videos</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
                 {withGenerations
-                  .sort((a, b) => b.totalCostUsd - a.totalCostUsd)
+                  .sort((a, b) => b.totalCostUsd + b.videoCostUsd - (a.totalCostUsd + a.videoCostUsd))
                   .map((s) => (
                     <tr key={s.brandId} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 font-medium">{s.brandName}</td>
@@ -52,6 +53,15 @@ export default async function CostsPage() {
                         {s.completeCount > 0
                           ? `$${(s.totalCostUsd / s.completeCount).toFixed(3)}`
                           : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {s.videoCount > 0 ? (
+                          <>
+                            {s.videoCount} · <span className="font-medium">${s.videoCostUsd.toFixed(2)}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link

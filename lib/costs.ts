@@ -12,6 +12,10 @@ export type BrandCostSummary = {
   totalCostUsd: number;
   /** Batch bills 50% of the normal price, so the saving equals what was paid. */
   batchSavedUsd: number;
+  /** Video Studio: videos and their transcription cost (0 until the
+   *  video_generations table exists). */
+  videoCount: number;
+  videoCostUsd: number;
 };
 
 export type CostedGeneration = {
@@ -41,10 +45,16 @@ export async function getCostSummaryByBrand(): Promise<BrandCostSummary[]> {
     .select("*");
   if (genError) throw genError;
 
+  // Optional until the Video Studio SQL has been run — never break Costs over it.
+  const { data: videos } = await db.from("video_generations").select("brand_id, est_cost_usd");
+
   return (brands ?? []).map((brand) => {
     const rows = (generations ?? []).filter((g) => g.brand_id === brand.id);
     const complete = rows.filter((g) => g.status === "complete");
+    const vids = (videos ?? []).filter((v) => v.brand_id === brand.id);
     return {
+      videoCount: vids.length,
+      videoCostUsd: vids.reduce((sum, v) => sum + Number(v.est_cost_usd || 0), 0),
       brandId: brand.id,
       brandName: brand.name,
       generationCount: rows.length,
