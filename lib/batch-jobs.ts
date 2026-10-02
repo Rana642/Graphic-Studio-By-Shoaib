@@ -39,7 +39,10 @@ export async function submitBatchGeneration(
         copy_cta: input.copy?.cta,
         status: "pending",
         delivery: "batch",
-      }))
+      })),
+      // A multi-row insert otherwise sends omitted fields (track) as NULL
+      // instead of letting the column default apply.
+      { defaultToNull: false }
     )
     .select();
   if (error) throw migrationHint(error);
