@@ -15,6 +15,8 @@ const bodySchema = z.object({
   provider: z.enum(["nano-banana", "gpt-image"]),
   tier: z.enum(["draft", "standard", "premium"]),
   placementIds: z.array(z.string()).min(1).max(6),
+  // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).
+  delivery: z.enum(["instant", "batch"]).optional(),
 });
 
 /**
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { brandId, offer, provider, tier, placementIds } = parsed.data;
+    const { brandId, offer, provider, tier, placementIds, delivery } = parsed.data;
 
     const brand = await getBrand(brandId);
     if (!brand) return NextResponse.json({ error: "Brand not found." }, { status: 404 });
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
       placements,
       referenceImages,
       copy,
+      delivery,
     });
 
     return NextResponse.json({ batchId, copy, results });

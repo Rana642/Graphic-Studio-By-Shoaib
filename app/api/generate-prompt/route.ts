@@ -12,6 +12,8 @@ const bodySchema = z.object({
   provider: z.enum(["nano-banana", "gpt-image"]),
   tier: z.enum(["draft", "standard", "premium"]),
   placementIds: z.array(z.string()).min(1).max(6),
+  // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).
+  delivery: z.enum(["instant", "batch"]).optional(),
   brandId: z.string().uuid().optional(),
   // Ad-hoc, one-off reference images attached directly in the form — not
   // saved anywhere, unlike a brand's persistent brand_references. Capped at
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { prompt, provider, tier, placementIds, brandId, referenceImages: adHocReferenceImages } =
+    const { prompt, provider, tier, placementIds, brandId, referenceImages: adHocReferenceImages, delivery } =
       parsed.data;
 
     const placements = placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
       tier: tier as Tier,
       placements,
       referenceImages,
+      delivery,
     });
 
     return NextResponse.json({ batchId, results });

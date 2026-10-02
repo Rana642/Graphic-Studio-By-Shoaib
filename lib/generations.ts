@@ -17,6 +17,11 @@ export type Generation = {
   est_cost_usd: number | null;
   status: "pending" | "complete" | "failed";
   error_message: string | null;
+  /** "batch" rows sit at status "pending" until their provider job finishes. */
+  delivery: "instant" | "batch";
+  /** The provider batch job (OpenAI "batch_…" / Gemini "batches/…") — batch rows only. */
+  provider_job_id: string | null;
+  completed_at: string | null;
   upscaled_image_url: string | null;
   upscale_provider: string | null;
   upscale_cost_usd: number | null;
@@ -95,6 +100,7 @@ export async function insertGeneration(row: {
   template_id?: string;
   status: "complete" | "failed";
   error_message?: string;
+  delivery?: Generation["delivery"];
 }): Promise<Generation> {
   const { data, error } = await db.from("generations").insert(row).select().single();
   if (error) throw error;

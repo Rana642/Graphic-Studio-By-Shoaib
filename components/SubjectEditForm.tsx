@@ -2,17 +2,8 @@
 
 import { useState } from "react";
 import { PLACEMENTS } from "@/lib/placements";
-import EnhanceButton from "./EnhanceButton";
-
-type ResultRow = {
-  id: string;
-  placement: string;
-  status: "complete" | "failed";
-  image_url: string | null;
-  est_cost_usd: number | null;
-  error_message: string | null;
-  upscaled_image_url?: string | null;
-};
+import GenerationResults, { type ResultRow } from "./GenerationResults";
+import DeliveryChoice, { deliveryMultiplier, type Delivery } from "./DeliveryChoice";
 
 type ApiResponse = {
   results?: ResultRow[];
@@ -42,6 +33,7 @@ export default function SubjectEditForm({
   const [brandId, setBrandId] = useState<string>("");
   const [provider, setProvider] = useState<"nano-banana" | "gpt-image">("nano-banana");
   const [tier, setTier] = useState<"draft" | "standard" | "premium">("standard");
+  const [delivery, setDelivery] = useState<Delivery>("instant");
   const [placementIds, setPlacementIds] = useState<string[]>(REGULAR_TRACK_IDS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +73,7 @@ export default function SubjectEditForm({
           provider,
           tier,
           placementIds,
+          delivery,
           ...(brandId ? { brandId } : {}),
         }),
       });
@@ -112,7 +105,8 @@ export default function SubjectEditForm({
 
   const estTotal =
     placementIds.length *
-    { draft: 0.02, standard: 0.045, premium: 0.15 }[tier];
+    { draft: 0.02, standard: 0.045, premium: 0.15 }[tier] *
+    deliveryMultiplier(delivery);
 
   return (
     <div className="max-w-2xl">
@@ -196,6 +190,8 @@ export default function SubjectEditForm({
           </div>
         </div>
 
+        <DeliveryChoice value={delivery} onChange={setDelivery} />
+
         <div>
           <p className="mb-2 text-sm text-muted">Sizes to generate</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -227,49 +223,16 @@ export default function SubjectEditForm({
           className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {loading
-            ? "Generating…"
-            : `Generate ${placementIds.length} size${placementIds.length === 1 ? "" : "s"} (~$${estTotal.toFixed(2)})`}
+            ? delivery === "batch"
+              ? "Queuing…"
+              : "Generating…"
+            : `${delivery === "batch" ? "Queue" : "Generate"} ${placementIds.length} size${placementIds.length === 1 ? "" : "s"} (~$${estTotal.toFixed(2)})`}
         </button>
       </form>
 
       {response?.results && (
         <div className="mt-10">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {response.results.map((r) => (
-              <div key={r.id} className="rounded-xl border border-border bg-surface p-3">
-                {r.status === "complete" && r.image_url ? (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={r.upscaled_image_url || r.image_url}
-                      alt={r.placement}
-                      className="w-full rounded-lg"
-                    />
-                    <div className="mt-2 flex items-center justify-between text-sm">
-                      <span className="text-muted">{r.placement}</span>
-                      <a
-                        href={r.upscaled_image_url || r.image_url}
-                        download
-                        className="text-accent hover:underline"
-                      >
-                        Download{r.upscaled_image_url ? " (enhanced)" : ""}
-                      </a>
-                    </div>
-                    {r.upscaled_image_url ? (
-                      <p className="mt-2 text-xs text-muted">✨ Enhanced with Topaz</p>
-                    ) : (
-                      <EnhanceButton generationId={r.id} onEnhanced={(url) => onEnhanced(r.id, url)} />
-                    )}
-                  </>
-                ) : (
-                  <div className="flex h-32 flex-col items-center justify-center text-center text-sm text-danger">
-                    <p className="font-medium">{r.placement} failed</p>
-                    <p className="mt-1 text-xs text-muted">{r.error_message}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <GenerationResults results={response.results} onEnhanced={onEnhanced} />
         </div>
       )}
     </div>

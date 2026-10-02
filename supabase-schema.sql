@@ -131,3 +131,17 @@ alter table brand_references enable row level security;
 -- - "logos"       — brand logo uploads AND reference images (path:
 --                    {brandId}/references/... for the latter)
 -- - "generations" — generated/composited output images
+
+-- Batch delivery (2026-10-02): a generation can go through OpenAI's / Google's
+-- Batch API at half price instead of the normal call. Those rows are written
+-- as status 'pending' with delivery 'batch' and the provider's job id, then
+-- completed by lib/batch-jobs.ts syncBatchJobs() (Batches page / the MCP
+-- studio_check_batches tool). Safe to re-run.
+alter table generations add column if not exists delivery text not null default 'instant';
+alter table generations add column if not exists provider_job_id text;
+alter table generations add column if not exists completed_at timestamptz;
+do $$ begin
+  alter table generations add constraint generations_delivery_check check (delivery in ('instant', 'batch'));
+exception when duplicate_object then null;
+end $$;
+create index if not exists generations_pending_batch_idx on generations(provider_job_id) where status = 'pending';

@@ -59,6 +59,12 @@ separate one.
       "Photoshop does levels before creative work" step. Pixel-value-only,
       so it can't alter a face's shape; the AI still never touches faces
       either (see `buildSubjectEditPrompt`).
+- [x] Batch delivery — every Generate page (and the MCP generate tools)
+      has a Delivery choice: "Now" (normal API) or "Batch" (OpenAI / Google
+      Batch API: same model, 50% price, ready within 24 h). Batch images show
+      on `/batches`, which checks the providers on every load (and every
+      minute while something is queued); MCP: `studio_check_batches`. Needs
+      the "Batch delivery" SQL at the end of `supabase-schema.sql`.
 - [ ] Phase 4 — Rare identity assets (mood board, business card, letterhead)
 - [ ] Deferred — auto-posting to Meta/LinkedIn
 

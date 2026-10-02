@@ -6,7 +6,12 @@ export type BrandCostSummary = {
   brandName: string;
   generationCount: number;
   completeCount: number;
+  failedCount: number;
+  /** Batch images still in the provider queue — not billed yet. */
+  pendingCount: number;
   totalCostUsd: number;
+  /** Batch bills 50% of the normal price, so the saving equals what was paid. */
+  batchSavedUsd: number;
 };
 
 export type CostedGeneration = {
@@ -31,7 +36,9 @@ export async function getCostSummaryByBrand(): Promise<BrandCostSummary[]> {
 
   const { data: generations, error: genError } = await db
     .from("generations")
-    .select("brand_id, status, est_cost_usd");
+    // "*" rather than naming delivery, so this page still loads before the
+    // batch SQL migration has been run.
+    .select("*");
   if (genError) throw genError;
 
   return (brands ?? []).map((brand) => {
@@ -42,7 +49,10 @@ export async function getCostSummaryByBrand(): Promise<BrandCostSummary[]> {
       brandName: brand.name,
       generationCount: rows.length,
       completeCount: complete.length,
+      failedCount: rows.filter((g) => g.status === "failed").length,
+      pendingCount: rows.filter((g) => g.status === "pending").length,
       totalCostUsd: complete.reduce((sum, g) => sum + (g.est_cost_usd || 0), 0),
+      batchSavedUsd: complete.filter((g) => g.delivery === "batch").reduce((sum, g) => sum + (g.est_cost_usd || 0), 0),
     };
   });
 }

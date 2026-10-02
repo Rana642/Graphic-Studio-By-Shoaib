@@ -1,7 +1,8 @@
 import "server-only";
-import { generateImage, type Provider, type Tier } from "./image-providers";
+import { generateImage, type Delivery, type Provider, type Tier } from "./image-providers";
 import type { Placement } from "./placements";
 import { insertGeneration, uploadGeneratedImage, type Generation } from "./generations";
+import { submitBatchGeneration } from "./batch-jobs";
 
 export type GenerationBatchInput = {
   brandId: string | null;
@@ -15,6 +16,9 @@ export type GenerationBatchInput = {
   copy?: { label: string; hook: string; cta: string };
   /** Defaults to "creative" (matches the DB column default) if omitted. */
   track?: Generation["track"];
+  /** "batch" = provider Batch API at half price; rows come back "pending"
+   *  and complete later (see lib/batch-jobs.ts). Defaults to "instant". */
+  delivery?: Delivery;
 };
 
 /** Fires one generation per placement in parallel, uploading + recording
@@ -24,6 +28,7 @@ export type GenerationBatchInput = {
 export async function runGenerationBatch(
   input: GenerationBatchInput
 ): Promise<{ batchId: string; results: Generation[] }> {
+  if (input.delivery === "batch") return submitBatchGeneration(input);
   const batchId = crypto.randomUUID();
 
   const results = await Promise.all(

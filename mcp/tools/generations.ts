@@ -8,6 +8,7 @@ import { listGenerations, type Generation } from "../../lib/generations.js";
 import { loadReferenceImagesAsBase64 } from "../../lib/references.js";
 import { buildImagePrompt, buildSubjectEditPrompt } from "../../lib/prompt.js";
 import { runGenerationBatch } from "../../lib/generate-batch.js";
+import { syncBatchJobs } from "../../lib/batch-jobs.js";
 import { autoRetouchPhoto } from "../../lib/retouch.js";
 
 function formatError(error: unknown): string {
@@ -52,8 +53,13 @@ function resultsToMarkdown(batchId: string, results: Generation[]): string {
     lines.push(
       r.status === "complete"
         ? `- ✅ **${r.placement}** — ${r.image_url}`
-        : `- ❌ **${r.placement}** — ${r.error_message}`
+        : r.status === "pending"
+          ? `- ⏳ **${r.placement}** — queued in the batch (half price, ready within 24 h)`
+          : `- ❌ **${r.placement}** — ${r.error_message}`
     );
+  }
+  if (results.some((r) => r.status === "pending")) {
+    lines.push("", "Call studio_check_batches with this batchId later to collect the images.");
   }
   return lines.join("\n");
 }
@@ -64,6 +70,7 @@ function resultsToStructured(batchId: string, results: Generation[]) {
     results: results.map((r) => ({
       placement: r.placement,
       status: r.status,
+      delivery: r.delivery,
       image_url: r.image_url,
       model_used: r.model_used,
       est_cost_usd: r.est_cost_usd,
@@ -118,12 +125,13 @@ Args:
   - provider ("nano-banana" | "gpt-image", required): which image model family to use.
   - tier ("draft" | "standard" | "premium", required): quality/cost tier — draft is cheapest for concepting, premium is the best-quality final export.
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements, e.g. ["ig_feed", "ig_story"]. One image is generated per placement, in parallel, sharing the same batch.
+  - delivery ("instant" | "batch", optional, default "instant"): "batch" sends the job through the provider's Batch API — same model and quality at 50% of the price, ready within 24 hours. Batch results come back with status "pending"; collect them later with studio_check_batches. Use batch whenever the images aren't needed right away.
 
 Returns (JSON):
 {
   "batchId": string,
   "results": [
-    { "placement": string, "status": "complete"|"failed", "image_url": string|null, "model_used": string|null, "est_cost_usd": number|null, "error_message": string|null }
+    { "placement": string, "status": "complete"|"failed"|"pending", "delivery": "instant"|"batch", "image_url": string|null, "model_used": string|null, "est_cost_usd": number|null, "error_message": string|null }
   ]
 }
 A "complete" result's image_url is a public URL — download it (e.g. with curl) to use the graphic elsewhere. A "failed" result carries error_message explaining why that one placement didn't render; other placements in the same batch are unaffected.
@@ -143,6 +151,10 @@ Error Handling:
           .min(1)
           .max(6)
           .describe("Placement ids from studio_list_placements, e.g. [\"ig_feed\", \"ig_story\"]"),
+        delivery: z
+          .enum(["instant", "batch"])
+          .default("instant")
+          .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -154,6 +166,7 @@ Error Handling:
       provider: "nano-banana" | "gpt-image";
       tier: "draft" | "standard" | "premium";
       placementIds: string[];
+      delivery: "instant" | "batch";
     }) => {
       try {
         const brand = await getBrand(params.brandId);
@@ -192,6 +205,7 @@ Error Handling:
           placements,
           referenceImages,
           copy,
+          delivery: params.delivery,
         });
 
         return {
@@ -217,6 +231,8 @@ Args:
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements. One image is generated per placement, in parallel, sharing the same batch.
   - brandId (string, UUID, optional): purely for filing/history and to pull that brand's reference images in for style consistency — does NOT inject that brand's colors, voice, or footer into the prompt. Omit for a fully standalone generation.
   - referenceImagePaths (string[], optional, up to 4): local filesystem paths to images (png/jpg/webp/gif) to send alongside the prompt for style matching — e.g. an existing graphic to mimic the layout/palette of. Combined with the brand's saved reference images if brandId is also given.
+
+  - delivery ("instant" | "batch", optional): as in studio_generate_graphics — "batch" is 50% cheaper, ready within 24 h, collect with studio_check_batches.
 
 Returns (JSON): same shape as studio_generate_graphics — { "batchId", "results": [{ "placement", "status", "image_url", "model_used", "est_cost_usd", "error_message" }] }.
 
@@ -246,6 +262,10 @@ Error Handling:
           .max(4)
           .optional()
           .describe("Local file paths to images for style/reference input, e.g. an existing graphic to match"),
+        delivery: z
+          .enum(["instant", "batch"])
+          .default("instant")
+          .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -256,6 +276,7 @@ Error Handling:
       placementIds: string[];
       brandId?: string;
       referenceImagePaths?: string[];
+      delivery: "instant" | "batch";
     }) => {
       try {
         const placements = params.placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -300,6 +321,7 @@ Error Handling:
           tier: params.tier,
           placements,
           referenceImages,
+          delivery: params.delivery,
         });
 
         return {
@@ -328,6 +350,8 @@ Args:
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements.
   - brandId (string, UUID, optional): files the result under that brand's history only — has no effect on the prompt.
 
+  - delivery ("instant" | "batch", optional): as in studio_generate_graphics — "batch" is 50% cheaper, ready within 24 h, collect with studio_check_batches.
+
 Returns (JSON): same shape as studio_generate_graphics — { "batchId", "results": [{ "placement", "status", "image_url", "model_used", "est_cost_usd", "error_message" }] }.
 
 Error Handling:
@@ -352,6 +376,10 @@ Error Handling:
           .uuid()
           .optional()
           .describe("Optional: file under this brand's history. Does not affect the prompt."),
+        delivery: z
+          .enum(["instant", "batch"])
+          .default("instant")
+          .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -362,6 +390,7 @@ Error Handling:
       tier: "draft" | "standard" | "premium";
       placementIds: string[];
       brandId?: string;
+      delivery: "instant" | "batch";
     }) => {
       try {
         const placements = params.placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -409,11 +438,73 @@ Error Handling:
           placements,
           referenceImages: [retouchedSubjectImage],
           track: "subject_edit",
+          delivery: params.delivery,
         });
 
         return {
           content: [{ type: "text", text: resultsToMarkdown(batchId, results) }],
           structuredContent: resultsToStructured(batchId, results),
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "studio_check_batches",
+    {
+      title: "Check Batch Generations",
+      description: `Check OpenAI's and Google's Batch API for every generation queued with delivery "batch", save whatever has finished, and report it. Batch images are 50% cheaper and arrive within 24 hours; nothing collects them automatically — the app's Batches page and this tool are what bring them in.
+
+Args:
+  - batchId (string, optional): only report this batch (as returned by a generate tool). Every pending job is still checked.
+
+Returns (JSON): { "sync": { "jobsChecked", "stillRunning", "completed", "failed", "errors": string[] }, "results": [{ "batchId", "placement", "status", "image_url", "error_message" }] }
+results lists the given batch, or — without batchId — every batch row still pending plus those finished in the last 24 hours. A "complete" image_url is public; download it to reuse the graphic.`,
+      inputSchema: {
+        batchId: z.string().optional().describe("Only report this batch id"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ batchId }: { batchId?: string }) => {
+      try {
+        const sync = await syncBatchJobs();
+        const rows = (await listGenerations({ batchId, limit: 100 })).filter(
+          (g) =>
+            g.delivery === "batch" &&
+            (batchId || g.status === "pending" || Date.now() - Date.parse(g.completed_at ?? g.created_at) < 24 * 60 * 60 * 1000)
+        );
+
+        const lines = [
+          `# Batch check — ${sync.jobsChecked} job(s) checked`,
+          `Saved now: ${sync.completed} · failed now: ${sync.failed} · still running: ${sync.stillRunning}`,
+          ...sync.errors.map((e) => `⚠️ ${e}`),
+          "",
+        ];
+        for (const g of rows) {
+          lines.push(
+            g.status === "complete"
+              ? `- ✅ **${g.placement}** (batch ${g.batch_id}) — ${g.image_url}`
+              : g.status === "pending"
+                ? `- ⏳ **${g.placement}** (batch ${g.batch_id}) — still in the provider's queue`
+                : `- ❌ **${g.placement}** (batch ${g.batch_id}) — ${g.error_message}`
+          );
+        }
+        if (rows.length === 0) lines.push("_No batch generations to report._");
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+          structuredContent: {
+            sync,
+            results: rows.map((g) => ({
+              batchId: g.batch_id,
+              placement: g.placement,
+              status: g.status,
+              image_url: g.image_url,
+              error_message: g.error_message,
+            })),
+          },
         };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };

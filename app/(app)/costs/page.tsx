@@ -7,6 +7,7 @@ export default async function CostsPage() {
   const summaries = await getCostSummaryByBrand();
   const withGenerations = summaries.filter((s) => s.generationCount > 0);
   const grandTotal = withGenerations.reduce((sum, s) => sum + s.totalCostUsd, 0);
+  const batchSaved = withGenerations.reduce((sum, s) => sum + s.batchSavedUsd, 0);
 
   return (
     <div>
@@ -41,12 +42,8 @@ export default async function CostsPage() {
                       <td className="px-4 py-3 font-medium">{s.brandName}</td>
                       <td className="px-4 py-3 text-sm">
                         {s.completeCount}
-                        {s.generationCount !== s.completeCount && (
-                          <span className="text-muted">
-                            {" "}
-                            ({s.generationCount - s.completeCount} failed)
-                          </span>
-                        )}
+                        {s.failedCount > 0 && <span className="text-muted"> ({s.failedCount} failed)</span>}
+                        {s.pendingCount > 0 && <span className="text-muted"> ({s.pendingCount} in batch)</span>}
                       </td>
                       <td className="px-4 py-3 text-sm font-medium">
                         ${s.totalCostUsd.toFixed(2)}
@@ -73,6 +70,12 @@ export default async function CostsPage() {
             Total across all brands: <span className="font-medium text-foreground">
               ${grandTotal.toFixed(2)}
             </span>
+            {batchSaved > 0 && (
+              <>
+                {" · "}Saved with batch:{" "}
+                <span className="font-medium text-foreground">${batchSaved.toFixed(2)}</span>
+              </>
+            )}
           </p>
         </>
       )}
