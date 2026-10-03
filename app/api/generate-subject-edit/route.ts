@@ -4,7 +4,8 @@ import { getUser } from "@/lib/supabase/auth";
 import { getBrand } from "@/lib/brands";
 import { getPlacement } from "@/lib/placements";
 import type { Provider, Tier } from "@/lib/image-providers";
-import { buildSubjectEditPrompt } from "@/lib/prompt";
+import { buildSubjectEditContract } from "@/lib/prompt";
+import { renderContract } from "@/lib/prompt-contract";
 import { runGenerationBatch } from "@/lib/generate-batch";
 import { autoRetouchPhoto } from "@/lib/retouch";
 
@@ -16,6 +17,8 @@ const bodySchema = z.object({
   placementIds: z.array(z.string()).min(1).max(6),
   // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).
   delivery: z.enum(["instant", "batch"]).optional(),
+  // Vision quality gate (lib/quality-gate.ts) — on unless explicitly false.
+  qualityCheck: z.boolean().optional(),
   brandId: z.string().uuid().optional(),
 });
 
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { subjectImage, sceneDescription, provider, tier, placementIds, brandId, delivery } = parsed.data;
+    const { subjectImage, sceneDescription, provider, tier, placementIds, brandId, delivery, qualityCheck } = parsed.data;
 
     const placements = placementIds.map(getPlacement).filter((p) => p !== undefined);
     if (placements.length === 0) {
@@ -46,7 +49,8 @@ export async function POST(request: Request) {
       if (!brand) return NextResponse.json({ error: "Brand not found." }, { status: 404 });
     }
 
-    const prompt = buildSubjectEditPrompt(sceneDescription);
+    const contract = buildSubjectEditContract(sceneDescription);
+    const prompt = renderContract(contract);
 
     // Basic exposure/contrast correction on the real subject first — same
     // discipline a designer applies in Photoshop before any creative work.
@@ -65,6 +69,9 @@ export async function POST(request: Request) {
       referenceImages: [retouchedSubjectImage],
       track: "subject_edit",
       delivery,
+      contract,
+      expectedText: [],
+      qualityCheck,
     });
 
     return NextResponse.json({ batchId, results });

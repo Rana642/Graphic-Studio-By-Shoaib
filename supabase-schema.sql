@@ -166,3 +166,11 @@ create table if not exists video_generations (
 create index if not exists video_generations_brand_id_idx on video_generations(brand_id);
 alter table video_generations enable row level security;
 -- Storage bucket "videos" (public) is created by lib/videos.ts on first upload.
+
+-- Vision quality gate (2026-10-03, lib/quality-gate.ts): every AI image is
+-- checked by a vision reviewer (exact text, logo/product fidelity, design
+-- rules); a weak one is regenerated once with the fix and the better kept.
+-- quality_attempts = images the placement took (2 = retried). Safe to re-run.
+alter table generations add column if not exists quality_score smallint;
+alter table generations add column if not exists quality_notes text;
+alter table generations add column if not exists quality_attempts smallint;

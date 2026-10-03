@@ -34,6 +34,7 @@ export default function SubjectEditForm({
   const [provider, setProvider] = useState<"nano-banana" | "gpt-image">("nano-banana");
   const [tier, setTier] = useState<"draft" | "standard" | "premium">("standard");
   const [delivery, setDelivery] = useState<Delivery>("instant");
+  const [qualityCheck, setQualityCheck] = useState(true);
   const [placementIds, setPlacementIds] = useState<string[]>(REGULAR_TRACK_IDS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +75,7 @@ export default function SubjectEditForm({
           tier,
           placementIds,
           delivery,
+          qualityCheck,
           ...(brandId ? { brandId } : {}),
         }),
       });
@@ -191,6 +193,16 @@ export default function SubjectEditForm({
         </div>
 
         <DeliveryChoice value={delivery} onChange={setDelivery} />
+
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={qualityCheck} onChange={(e) => setQualityCheck(e.target.checked)} />
+          <span>
+            <span className="font-medium">Auto quality check</span>
+            <span className="block text-xs text-muted">
+              AI checks the text letter by letter, the logo and the design. If an image falls short it is made once more with the fix — that retry costs one more image.
+            </span>
+          </span>
+        </label>
 
         <div>
           <p className="mb-2 text-sm text-muted">Sizes to generate</p>

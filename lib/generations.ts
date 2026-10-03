@@ -22,6 +22,11 @@ export type Generation = {
   /** The provider batch job (OpenAI "batch_…" / Gemini "batches/…") — batch rows only. */
   provider_job_id: string | null;
   completed_at: string | null;
+  /** Vision quality gate (lib/quality-gate.ts): 0-100, what it found, and how
+   *  many images the placement took (2 = retried once with a fix hint). */
+  quality_score: number | null;
+  quality_notes: string | null;
+  quality_attempts: number | null;
   upscaled_image_url: string | null;
   upscale_provider: string | null;
   upscale_cost_usd: number | null;
@@ -101,10 +106,36 @@ export async function insertGeneration(row: {
   status: "complete" | "failed";
   error_message?: string;
   delivery?: Generation["delivery"];
+  quality_score?: number;
+  quality_notes?: string;
+  quality_attempts?: number;
 }): Promise<Generation> {
   const { data, error } = await db.from("generations").insert(row).select().single();
+  if (error && isMissingQualityColumn(error)) {
+    // Before the quality SQL has been run: save the image anyway, without its score.
+    const rest = Object.fromEntries(Object.entries(row).filter(([k]) => !k.startsWith("quality_")));
+    const retry = await db.from("generations").insert(rest).select().single();
+    if (retry.error) throw retry.error;
+    return retry.data;
+  }
   if (error) throw error;
   return data;
+}
+
+/** Saves a quality-gate verdict on an existing generation (e.g. one checked
+ *  later through the MCP studio_check_quality tool). No-op before the
+ *  quality SQL has been run. */
+export async function recordQuality(id: string, q: { score: number; notes: string; attempts?: number }): Promise<void> {
+  const { error } = await db
+    .from("generations")
+    .update({ quality_score: q.score, quality_notes: q.notes, ...(q.attempts ? { quality_attempts: q.attempts } : {}) })
+    .eq("id", id);
+  if (error && !isMissingQualityColumn(error)) throw error;
+}
+
+/** PostgREST's error when a quality_* column doesn't exist yet. */
+export function isMissingQualityColumn(error: { message?: string }): boolean {
+  return /quality_(score|notes|attempts)/.test(error.message ?? "");
 }
 
 /** Uploads a base64 image to the `generations` Storage bucket and returns

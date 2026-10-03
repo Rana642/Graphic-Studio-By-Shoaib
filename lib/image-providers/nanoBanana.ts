@@ -17,8 +17,10 @@ const MODEL_BY_TIER: Record<GenerateImageInput["tier"], { model: string; estCost
 
 const API_KEY = process.env.GOOGLE_AI_STUDIO_API_KEY || "";
 const BASE = "https://generativelanguage.googleapis.com";
+// Neutral on purpose: the prompt's IMAGE REFERENCES line (lib/prompt-contract.ts)
+// says what each image is — logo, product, subject or style reference.
 const REFERENCE_LEAD_IN =
-  "The following image(s) are existing brand graphics — match their visual style (color usage, layout feel, typography treatment) in what you generate next:";
+  "Reference images follow, in order (image 1, image 2, …). The instructions after them say what each one is and how to use it.";
 
 async function gemini(path: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, { ...init, headers: { "x-goog-api-key": API_KEY, ...(init.headers ?? {}) } });

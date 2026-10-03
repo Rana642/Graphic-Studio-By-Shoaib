@@ -56,6 +56,25 @@ export async function deleteReference(id: string, imageUrl: string): Promise<voi
   if (error) throw error;
 }
 
+/** The brand's own logo as an attachable image (image 1 in the prompt
+ *  contract). SVG/WebP logos are rasterised to PNG — the image APIs only
+ *  take bitmaps. Null when the brand has no logo or it can't be fetched. */
+export async function loadBrandLogo(logoUrl: string | null): Promise<{ base64: string; mimeType: string } | null> {
+  if (!logoUrl) return null;
+  try {
+    const res = await fetch(logoUrl);
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const type = res.headers.get("content-type") || "";
+    if (/png|jpe?g/.test(type)) return { base64: buffer.toString("base64"), mimeType: type.split(";")[0] };
+    const { default: sharp } = await import("sharp");
+    const png = await sharp(buffer, { density: 300 }).resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: false }).png().toBuffer();
+    return { base64: png.toString("base64"), mimeType: "image/png" };
+  } catch {
+    return null;
+  }
+}
+
 /** Fetches each reference image and base64-encodes it, for providers (Nano
  *  Banana) that accept inline reference images alongside the text prompt. */
 export async function loadReferenceImagesAsBase64(

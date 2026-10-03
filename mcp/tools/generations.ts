@@ -4,9 +4,11 @@ import { extname } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getBrand } from "../../lib/brands.js";
 import { PLACEMENTS, getPlacement } from "../../lib/placements.js";
-import { listGenerations, type Generation } from "../../lib/generations.js";
-import { loadReferenceImagesAsBase64 } from "../../lib/references.js";
-import { buildImagePrompt, buildSubjectEditPrompt } from "../../lib/prompt.js";
+import { getGeneration, listGenerations, recordQuality, type Generation } from "../../lib/generations.js";
+import { loadBrandLogo, loadReferenceImagesAsBase64 } from "../../lib/references.js";
+import { buildImageContract, buildSubjectEditContract } from "../../lib/prompt.js";
+import { expectedTextFromPrompt, expectedTextOf, GLOBAL_DESIGN_RULE, quotedText, renderContract } from "../../lib/prompt-contract.js";
+import { judgeImage, qualityNote, QUALITY_PASS_SCORE } from "../../lib/quality-gate.js";
 import { runGenerationBatch } from "../../lib/generate-batch.js";
 import { syncBatchJobs } from "../../lib/batch-jobs.js";
 import { autoRetouchPhoto } from "../../lib/retouch.js";
@@ -47,12 +49,19 @@ async function loadLocalReferenceImages(
   );
 }
 
+/** Downloads an image link for the quality reviewer. */
+async function fetchAsImage(url: string): Promise<{ base64: string; mimeType: string }> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not download the image (${res.status}): ${url}`);
+  return { base64: Buffer.from(await res.arrayBuffer()).toString("base64"), mimeType: (res.headers.get("content-type") || "image/png").split(";")[0] };
+}
+
 function resultsToMarkdown(batchId: string, results: Generation[]): string {
   const lines = [`# Batch ${batchId}`, ""];
   for (const r of results) {
     lines.push(
       r.status === "complete"
-        ? `- ✅ **${r.placement}** — ${r.image_url}`
+        ? `- ✅ **${r.placement}** — ${r.image_url}${qualityLine(r)}`
         : r.status === "pending"
           ? `- ⏳ **${r.placement}** — queued in the batch (half price, ready within 24 h)`
           : `- ❌ **${r.placement}** — ${r.error_message}`
@@ -62,6 +71,13 @@ function resultsToMarkdown(batchId: string, results: Generation[]): string {
     lines.push("", "Call studio_check_batches with this batchId later to collect the images.");
   }
   return lines.join("\n");
+}
+
+/** The quality gate's verdict, appended to a result line. */
+function qualityLine(r: Generation): string {
+  if (r.quality_score == null) return "";
+  const retried = (r.quality_attempts ?? 1) > 1 ? ", auto-fixed once" : "";
+  return ` (quality ${r.quality_score}/100${retried}${r.quality_score < 70 && r.quality_notes ? ` — ${r.quality_notes}` : ""})`;
 }
 
 function resultsToStructured(batchId: string, results: Generation[]) {
@@ -75,9 +91,20 @@ function resultsToStructured(batchId: string, results: Generation[]) {
       model_used: r.model_used,
       est_cost_usd: r.est_cost_usd,
       error_message: r.error_message,
+      quality_score: r.quality_score ?? null,
+      quality_notes: r.quality_notes ?? null,
+      quality_attempts: r.quality_attempts ?? null,
     })),
   };
 }
+
+const QUALITY_SCHEMA = z
+  .boolean()
+  .default(true)
+  .describe("Vision quality gate: an AI reviewer checks the text letter by letter, the logo/product and the design; a weak image is made once more with the fix (that retry costs one more image). Default true.");
+
+const QUALITY_ARG_DOC = `  - qualityCheck (boolean, optional, default true): vision quality gate — each image is checked (exact text, logo/product fidelity, design rules) and a weak one is regenerated once with the reviewer's fix, keeping the better image. Each result then carries quality_score (0-100), quality_notes and quality_attempts. Batch images are scored but not regenerated.
+`;
 
 export function registerGenerationTools(server: McpServer): void {
   server.registerTool(
@@ -126,7 +153,7 @@ Args:
   - tier ("draft" | "standard" | "premium", required): quality/cost tier — draft is cheapest for concepting, premium is the best-quality final export.
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements, e.g. ["ig_feed", "ig_story"]. One image is generated per placement, in parallel, sharing the same batch.
   - delivery ("instant" | "batch", optional, default "instant"): "batch" sends the job through the provider's Batch API — same model and quality at 50% of the price, ready within 24 hours. Batch results come back with status "pending"; collect them later with studio_check_batches. Use batch whenever the images aren't needed right away.
-
+${QUALITY_ARG_DOC}
 Returns (JSON):
 {
   "batchId": string,
@@ -155,6 +182,7 @@ Error Handling:
           .enum(["instant", "batch"])
           .default("instant")
           .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
+        qualityCheck: QUALITY_SCHEMA,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -167,6 +195,7 @@ Error Handling:
       tier: "draft" | "standard" | "premium";
       placementIds: string[];
       delivery: "instant" | "batch";
+      qualityCheck: boolean;
     }) => {
       try {
         const brand = await getBrand(params.brandId);
@@ -194,8 +223,11 @@ Error Handling:
         const colors = [brand.primary_hex, brand.secondary_hex, brand.accent_hex].filter(
           (c): c is string => Boolean(c)
         );
-        const prompt = buildImagePrompt(brand, colors, copy);
-        const referenceImages = await loadReferenceImagesAsBase64(params.brandId);
+        // Image 1 = the brand logo (when it has one), then its saved style references.
+        const [logo, styleRefs] = await Promise.all([loadBrandLogo(brand.logo_url), loadReferenceImagesAsBase64(params.brandId)]);
+        const referenceImages = [...(logo ? [logo] : []), ...styleRefs];
+        const contract = buildImageContract(brand, colors, copy, { hasLogo: Boolean(logo), styleRefCount: styleRefs.length });
+        const prompt = renderContract(contract);
 
         const { batchId, results } = await runGenerationBatch({
           brandId: params.brandId,
@@ -206,6 +238,10 @@ Error Handling:
           referenceImages,
           copy,
           delivery: params.delivery,
+          contract,
+          expectedText: expectedTextOf(contract),
+          qualityCheck: params.qualityCheck,
+          qualityRules: GLOBAL_DESIGN_RULE,
         });
 
         return {
@@ -233,6 +269,7 @@ Args:
   - referenceImagePaths (string[], optional, up to 4): local filesystem paths to images (png/jpg/webp/gif) to send alongside the prompt for style matching — e.g. an existing graphic to mimic the layout/palette of. Combined with the brand's saved reference images if brandId is also given.
 
   - delivery ("instant" | "batch", optional): as in studio_generate_graphics — "batch" is 50% cheaper, ready within 24 h, collect with studio_check_batches.
+  - qualityCheck (boolean, optional, default true): vision quality gate, as in studio_generate_graphics.
 
 Returns (JSON): same shape as studio_generate_graphics — { "batchId", "results": [{ "placement", "status", "image_url", "model_used", "est_cost_usd", "error_message" }] }.
 
@@ -266,6 +303,7 @@ Error Handling:
           .enum(["instant", "batch"])
           .default("instant")
           .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
+        qualityCheck: QUALITY_SCHEMA,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -277,6 +315,7 @@ Error Handling:
       brandId?: string;
       referenceImagePaths?: string[];
       delivery: "instant" | "batch";
+      qualityCheck: boolean;
     }) => {
       try {
         const placements = params.placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -322,6 +361,8 @@ Error Handling:
           placements,
           referenceImages,
           delivery: params.delivery,
+          expectedText: quotedText(params.prompt),
+          qualityCheck: params.qualityCheck,
         });
 
         return {
@@ -351,6 +392,7 @@ Args:
   - brandId (string, UUID, optional): files the result under that brand's history only — has no effect on the prompt.
 
   - delivery ("instant" | "batch", optional): as in studio_generate_graphics — "batch" is 50% cheaper, ready within 24 h, collect with studio_check_batches.
+  - qualityCheck (boolean, optional, default true): vision quality gate, as in studio_generate_graphics.
 
 Returns (JSON): same shape as studio_generate_graphics — { "batchId", "results": [{ "placement", "status", "image_url", "model_used", "est_cost_usd", "error_message" }] }.
 
@@ -380,6 +422,7 @@ Error Handling:
           .enum(["instant", "batch"])
           .default("instant")
           .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
+        qualityCheck: QUALITY_SCHEMA,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -391,6 +434,7 @@ Error Handling:
       placementIds: string[];
       brandId?: string;
       delivery: "instant" | "batch";
+      qualityCheck: boolean;
     }) => {
       try {
         const placements = params.placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -423,7 +467,8 @@ Error Handling:
           return { content: [{ type: "text", text: formatError(err) }], isError: true };
         }
 
-        const prompt = buildSubjectEditPrompt(params.sceneDescription);
+        const contract = buildSubjectEditContract(params.sceneDescription);
+        const prompt = renderContract(contract);
 
         // Deterministic exposure/contrast correction before the AI ever
         // sees the subject — see lib/retouch.ts.
@@ -439,12 +484,110 @@ Error Handling:
           referenceImages: [retouchedSubjectImage],
           track: "subject_edit",
           delivery: params.delivery,
+          contract,
+          expectedText: [],
+          qualityCheck: params.qualityCheck,
         });
 
         return {
           content: [{ type: "text", text: resultsToMarkdown(batchId, results) }],
           structuredContent: resultsToStructured(batchId, results),
         };
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "studio_check_quality",
+    {
+      title: "Check an Image's Quality",
+      description: `Run the vision quality gate on any image — a past generation, a local file or a public link — without generating anything. An AI reviewer (OpenAI gpt-5.4-mini) checks that every expected text line appears spelled exactly, flags invented or garbled words, compares the logo/product with their reference images, applies design rules (e.g. "light and glassy, no dark colours") and scores overall polish 0-100. Use it to QA graphics made elsewhere too (ChatGPT, scripts) before they are posted.
+
+Args (give exactly one of generationId / imagePath / imageUrl):
+  - generationId (UUID, optional): a studio generation — its expected text and design rule are read from its saved prompt; the score is saved on the row.
+  - imagePath (string, optional): local image file.
+  - imageUrl (string, optional): public https image link.
+  - expectedText (string[], optional): exact lines the image must contain (overrides what the prompt implies).
+  - rules (string, optional): design rules to judge against.
+  - brief (string, optional): what the image is meant to show.
+  - logoPath / productPath (string, optional): local reference images to compare against.
+
+Returns (JSON): { "score", "passed", "text_ok", "wrong_text", "extra_text", "issues", "fix_hint", "judge" }. passed = score ≥ ${QUALITY_PASS_SCORE} and the text is right. Costs a fraction of a rupee per check; returns an error if no OPENAI_API_KEY is set.`,
+      inputSchema: {
+        generationId: z.string().uuid().optional().describe("A studio generation to check"),
+        imagePath: z.string().optional().describe("Local image file to check"),
+        imageUrl: z.string().url().optional().describe("Public https image link to check"),
+        expectedText: z.array(z.string()).optional().describe("Exact lines the image must contain"),
+        rules: z.string().optional().describe('Design rules, e.g. "light and glassy, no dark colours"'),
+        brief: z.string().optional().describe("What the image is meant to show"),
+        logoPath: z.string().optional().describe("Local logo file to compare with"),
+        productPath: z.string().optional().describe("Local product photo to compare with"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async (params: {
+      generationId?: string;
+      imagePath?: string;
+      imageUrl?: string;
+      expectedText?: string[];
+      rules?: string;
+      brief?: string;
+      logoPath?: string;
+      productPath?: string;
+    }) => {
+      try {
+        const sources = [params.generationId, params.imagePath, params.imageUrl].filter(Boolean).length;
+        if (sources !== 1) {
+          return { content: [{ type: "text", text: "Error: give exactly one of generationId, imagePath or imageUrl." }], isError: true };
+        }
+        let image: { base64: string; mimeType: string };
+        let prompt = "";
+        let row: Generation | undefined;
+        if (params.generationId) {
+          row = (await getGeneration(params.generationId!)) ?? undefined;
+          if (!row?.image_url) return { content: [{ type: "text", text: `Error: no finished generation '${params.generationId}'.` }], isError: true };
+          image = await fetchAsImage(row.image_url);
+          prompt = row.prompt_used ?? "";
+        } else if (params.imagePath) {
+          [image] = await loadLocalReferenceImages([params.imagePath]);
+        } else {
+          image = await fetchAsImage(params.imageUrl!);
+        }
+        const references = [
+          ...(params.logoPath ? [{ ...(await loadLocalReferenceImages([params.logoPath]))[0], role: "logo" }] : []),
+          ...(params.productPath ? [{ ...(await loadLocalReferenceImages([params.productPath]))[0], role: "product" }] : []),
+        ];
+        const result = await judgeImage({
+          image,
+          brief: params.brief ?? prompt,
+          expectedText: params.expectedText ?? (prompt ? expectedTextFromPrompt(prompt) : []),
+          rules: params.rules ?? (prompt.includes(GLOBAL_DESIGN_RULE) ? GLOBAL_DESIGN_RULE : undefined),
+          references,
+        });
+        if (!result) {
+          return { content: [{ type: "text", text: "Error: the quality check could not run (missing OPENAI_API_KEY or the reviewer failed)." }], isError: true };
+        }
+        if (row) await recordQuality(row.id, { score: result.score, notes: qualityNote(result) });
+        const structured = {
+          score: result.score,
+          passed: result.passed,
+          text_ok: result.textOk,
+          wrong_text: result.wrongText,
+          extra_text: result.extraText,
+          issues: result.issues,
+          fix_hint: result.fixHint,
+          judge: result.judge,
+        };
+        const lines = [
+          `# Quality ${result.score}/100 — ${result.passed ? "✅ passed" : "⚠️ needs work"}`,
+          result.textOk ? "Text: all expected lines present." : `Text problems: ${result.wrongText.join(" | ")}`,
+          result.extraText.length ? `Extra words: ${result.extraText.join(", ")}` : "",
+          ...result.issues.map((i) => `- ${i}`),
+          result.fixHint ? `Fix: ${result.fixHint}` : "",
+        ].filter(Boolean);
+        return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: structured };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };
       }

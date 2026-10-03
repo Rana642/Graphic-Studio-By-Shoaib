@@ -1,7 +1,9 @@
 import "server-only";
 import { db } from "./supabase/db";
 import { pollImageBatch, submitImageBatch } from "./image-providers";
-import { uploadGeneratedImage, type Generation } from "./generations";
+import { isMissingQualityColumn, uploadGeneratedImage, type Generation } from "./generations";
+import { expectedTextFromPrompt, GLOBAL_DESIGN_RULE } from "./prompt-contract";
+import { judgeImage, qualityNote } from "./quality-gate";
 import type { GenerationBatchInput } from "./generate-batch";
 
 /**
@@ -106,11 +108,11 @@ export async function syncBatchJobs(): Promise<BatchSyncSummary> {
 
   const { data, error } = await db
     .from("generations")
-    .select("id, brand_id, placement, provider_job_id, created_at")
+    .select("id, brand_id, placement, provider_job_id, created_at, prompt_used")
     .eq("status", "pending")
     .eq("delivery", "batch");
   if (error) throw migrationHint(error);
-  const pending = (data ?? []) as Pick<Generation, "id" | "brand_id" | "placement" | "provider_job_id" | "created_at">[];
+  const pending = (data ?? []) as Pick<Generation, "id" | "brand_id" | "placement" | "provider_job_id" | "created_at" | "prompt_used">[];
 
   const now = Date.now();
   const orphans = pending.filter((r) => !r.provider_job_id && now - Date.parse(r.created_at) > ORPHAN_AFTER_MS);
@@ -151,11 +153,21 @@ export async function syncBatchJobs(): Promise<BatchSyncSummary> {
         if (item && "imageBase64" in item) {
           try {
             const imageUrl = await uploadGeneratedImage(row.brand_id, row.placement, item.imageBase64, item.mimeType);
-            await db
-              .from("generations")
-              .update({ status: "complete", image_url: imageUrl, error_message: null, completed_at: new Date().toISOString() })
-              .eq("id", row.id)
-              .eq("status", "pending");
+            // Batch images are judged but not remade — a retry would cost the
+            // full instant price and undo the batch saving.
+            const prompt = row.prompt_used ?? "";
+            const quality = await judgeImage({
+              image: { base64: item.imageBase64, mimeType: item.mimeType },
+              brief: prompt,
+              expectedText: expectedTextFromPrompt(prompt),
+              rules: prompt.includes(GLOBAL_DESIGN_RULE) ? GLOBAL_DESIGN_RULE : undefined,
+            });
+            const done = { status: "complete", image_url: imageUrl, error_message: null, completed_at: new Date().toISOString() };
+            const withQuality = quality ? { ...done, quality_score: quality.score, quality_notes: qualityNote(quality), quality_attempts: 1 } : done;
+            const { error: saveError } = await db.from("generations").update(withQuality).eq("id", row.id).eq("status", "pending");
+            if (saveError && isMissingQualityColumn(saveError)) {
+              await db.from("generations").update(done).eq("id", row.id).eq("status", "pending");
+            } else if (saveError) throw saveError;
             summary.completed++;
           } catch (err) {
             await markFailed([row.id], `Saving the image failed: ${err instanceof Error ? err.message : String(err)}`);

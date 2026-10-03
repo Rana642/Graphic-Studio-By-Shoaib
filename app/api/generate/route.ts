@@ -5,8 +5,9 @@ import { getBrand } from "@/lib/brands";
 import { getPlacement } from "@/lib/placements";
 import type { Provider, Tier } from "@/lib/image-providers";
 import { generateCopy } from "@/lib/copywriting";
-import { loadReferenceImagesAsBase64 } from "@/lib/references";
-import { buildImagePrompt } from "@/lib/prompt";
+import { loadBrandLogo, loadReferenceImagesAsBase64 } from "@/lib/references";
+import { buildImageContract } from "@/lib/prompt";
+import { expectedTextOf, GLOBAL_DESIGN_RULE, renderContract } from "@/lib/prompt-contract";
 import { runGenerationBatch } from "@/lib/generate-batch";
 
 const bodySchema = z.object({
@@ -17,6 +18,8 @@ const bodySchema = z.object({
   placementIds: z.array(z.string()).min(1).max(6),
   // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).
   delivery: z.enum(["instant", "batch"]).optional(),
+  // Vision quality gate (lib/quality-gate.ts) — on unless explicitly false.
+  qualityCheck: z.boolean().optional(),
 });
 
 /**
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { brandId, offer, provider, tier, placementIds, delivery } = parsed.data;
+    const { brandId, offer, provider, tier, placementIds, delivery, qualityCheck } = parsed.data;
 
     const brand = await getBrand(brandId);
     if (!brand) return NextResponse.json({ error: "Brand not found." }, { status: 404 });
@@ -59,11 +62,12 @@ export async function POST(request: Request) {
     const colors = [brand.primary_hex, brand.secondary_hex, brand.accent_hex].filter(
       (c): c is string => Boolean(c)
     );
-    const prompt = buildImagePrompt(brand, colors, copy);
-
-    // Both providers can use these now: Nano Banana via inlineData parts,
-    // GPT Image via /v1/images/edits (see their respective files).
-    const referenceImages = await loadReferenceImagesAsBase64(brandId);
+    // Image 1 = the brand logo (when it has one), then its saved style
+    // references — the prompt contract's IMAGE REFERENCES line names each.
+    const [logo, styleRefs] = await Promise.all([loadBrandLogo(brand.logo_url), loadReferenceImagesAsBase64(brandId)]);
+    const referenceImages = [...(logo ? [logo] : []), ...styleRefs];
+    const contract = buildImageContract(brand, colors, copy, { offer, hasLogo: Boolean(logo), styleRefCount: styleRefs.length });
+    const prompt = renderContract(contract);
 
     const { batchId, results } = await runGenerationBatch({
       brandId,
@@ -74,6 +78,10 @@ export async function POST(request: Request) {
       referenceImages,
       copy,
       delivery,
+      contract,
+      expectedText: expectedTextOf(contract),
+      qualityCheck,
+      qualityRules: GLOBAL_DESIGN_RULE,
     });
 
     return NextResponse.json({ batchId, copy, results });

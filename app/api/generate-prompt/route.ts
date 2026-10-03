@@ -6,6 +6,7 @@ import { getPlacement } from "@/lib/placements";
 import type { Provider, Tier } from "@/lib/image-providers";
 import { loadReferenceImagesAsBase64 } from "@/lib/references";
 import { runGenerationBatch } from "@/lib/generate-batch";
+import { quotedText } from "@/lib/prompt-contract";
 
 const bodySchema = z.object({
   prompt: z.string().min(1).max(2000),
@@ -14,6 +15,8 @@ const bodySchema = z.object({
   placementIds: z.array(z.string()).min(1).max(6),
   // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).
   delivery: z.enum(["instant", "batch"]).optional(),
+  // Vision quality gate (lib/quality-gate.ts) — on unless explicitly false.
+  qualityCheck: z.boolean().optional(),
   brandId: z.string().uuid().optional(),
   // Ad-hoc, one-off reference images attached directly in the form — not
   // saved anywhere, unlike a brand's persistent brand_references. Capped at
@@ -40,7 +43,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { prompt, provider, tier, placementIds, brandId, referenceImages: adHocReferenceImages, delivery } =
+    const { prompt, provider, tier, placementIds, brandId, referenceImages: adHocReferenceImages, delivery, qualityCheck } =
       parsed.data;
 
     const placements = placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -64,6 +67,10 @@ export async function POST(request: Request) {
       placements,
       referenceImages,
       delivery,
+      // The free prompt stays the user's own words; the gate checks the
+      // words they put in quotes.
+      expectedText: quotedText(prompt),
+      qualityCheck,
     });
 
     return NextResponse.json({ batchId, results });

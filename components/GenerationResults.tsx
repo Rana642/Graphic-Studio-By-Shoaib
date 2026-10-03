@@ -11,7 +11,23 @@ export type ResultRow = {
   est_cost_usd: number | null;
   error_message: string | null;
   upscaled_image_url?: string | null;
+  quality_score?: number | null;
+  quality_notes?: string | null;
+  quality_attempts?: number | null;
 };
+
+/** The vision quality gate's verdict under an image (lib/quality-gate.ts). */
+function QualityBadge({ r }: { r: ResultRow }) {
+  if (r.quality_score == null) return null;
+  const passed = r.quality_score >= 70 && !/^Text:/.test(r.quality_notes ?? "");
+  const retried = (r.quality_attempts ?? 1) > 1;
+  return (
+    <p className={`mt-2 text-xs ${passed ? "text-muted" : "text-danger"}`} title={r.quality_notes ?? ""}>
+      {passed ? "✓" : "⚠"} Quality {r.quality_score}/100{retried ? " · auto-fixed once" : ""}
+      {!passed && r.quality_notes ? <span className="mt-0.5 block text-muted">{r.quality_notes}</span> : null}
+    </p>
+  );
+}
 
 /** Result grid shared by the generate forms and the Batches page: a finished
  *  image (download + enhance), a batch image still in the provider's queue,
@@ -52,6 +68,7 @@ export default function GenerationResults({
                     Download{r.upscaled_image_url ? " (enhanced)" : ""}
                   </a>
                 </div>
+                <QualityBadge r={r} />
                 {r.upscaled_image_url ? (
                   <p className="mt-2 text-xs text-muted">✨ Enhanced with Topaz</p>
                 ) : (
