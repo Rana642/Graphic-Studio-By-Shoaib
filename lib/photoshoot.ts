@@ -82,10 +82,44 @@ const SPACE: Record<string, string> = {
   centre: "the product centred with balanced space around it",
 };
 const STORY: Record<string, string[]> = {
-  tour: ["the hero shot of the product", "a close-up of the label and texture", "the product in its real setting", "a key benefit shown visually", "the product with its packaging", "a detail of how it is used", "a closing hero shot"],
-  problem: ["the problem it solves, shown gently (no suffering)", "the product as the answer", "the product in use", "the result after using it", "the product hero shot", "a detail of the product", "a closing hero shot"],
-  howto: ["step 1 — the product ready to use", "step 2 — preparing / measuring", "step 3 — using it", "step 4 — the result", "the product hero shot", "a detail of the dose / measure", "a closing hero shot"],
-  range: ["the full range together", "the hero product", "a second product", "a third product", "the range on a shelf", "a detail shot", "a closing range shot"],
+  // Each beat is a different picture — a live test showed bare beats ("step 2
+  // — preparing") all came out as the same bottle shot.
+  tour: [
+    "the hero shot — the product standing proudly in its setting",
+    "an extreme close-up of the label and texture, filling the frame",
+    "the product in its real place of use, seen from further back",
+    "a visual of the key benefit — the healthy, happy result it supports",
+    "the product beside its outer box / packaging",
+    "hands using the product, the product partly in frame",
+    "a closing hero shot from a new low angle",
+  ],
+  problem: [
+    "the problem it solves, shown gently in the setting (no suffering, no product yet)",
+    "the product appearing as the answer, large and bright",
+    "hands using the product in the real setting",
+    "the result — the setting healthy and happy, product small in a corner",
+    "the product hero shot",
+    "a close-up detail of the product",
+    "a closing hero shot from a new angle",
+  ],
+  howto: [
+    "STEP 1 — the product and the tools needed laid out neatly (flat lay)",
+    "STEP 2 — hands measuring the right amount (measuring cup / scoop), product beside",
+    "STEP 3 — hands adding or mixing it where it is used (e.g. into a water tank or feed), product in the background",
+    "STEP 4 — the result: the healthy outcome in its real setting, product small in a corner",
+    "the product hero shot",
+    "a close-up of the dose / measure",
+    "a closing hero shot",
+  ],
+  range: [
+    "the full range together, lined up",
+    "the hero product alone",
+    "a second product alone",
+    "a third product alone",
+    "the range on a shop shelf",
+    "a close-up detail shot",
+    "a closing range shot from above",
+  ],
 };
 const GOAL: Record<string, string> = {
   sales: "a strong product hero with clear space for an offer",
@@ -162,19 +196,21 @@ export function buildContract(ctx: BuildCtx, i: number, n: number, placement: Pl
       break;
     case "hero_banner":
       scene = `A wide hero image for ${USE[a.use]} featuring the product.`;
-      composition = `Wide 16:9 banner: ${SPACE[a.space]}; ${v.angle}.`;
+      composition = `Wide 16:9 banner: ${SPACE[a.space]}; the product LARGE — about 40–50% of the frame height, never a small object lost in empty space; ${v.angle}.`;
       background = "A clean, bright, wide scene with gentle depth that continues behind the text space.";
       break;
     case "social_carousel": {
       const beats = STORY[a.story];
-      scene = `Slide ${i + 1} of ${n} of an Instagram carousel telling one story: ${beats[i % beats.length]}.`;
-      keyElements = "VISUAL SYSTEM LOCK across all slides: the same background family, light and palette on every slide so they read as one set.";
+      scene = `Slide ${i + 1} of ${n} of an Instagram carousel telling one story. THIS SLIDE SHOWS: ${beats[i % beats.length]}. It must look clearly different from the other slides in what is happening.`;
+      keyElements = "VISUAL SYSTEM LOCK across all slides: the same background family, light and palette so they read as one set — but each slide's content, framing and camera distance differ.";
+      composition = `${placement.label}; framed for this slide's moment (close-up, medium or wide as it needs); uncluttered.`;
       if (a.story === "range") subjects = "The products shown must match the attached product photo(s) exactly — same packs, colours and label text.";
       break;
     }
     case "ad_creative_pack":
       scene = `Ad variant ${i + 1} of ${n} for paid social: ${GOAL[a.goal]} — ${AD_ANGLES[i % AD_ANGLES.length]}.`;
-      background = "A bright, scroll-stopping but clean backdrop.";
+      composition = `${placement.label}; the product and any text each get their own clear zone — the headline and button never overlap or hide behind the product, and nothing touches the frame edges; ${v.angle}.`;
+      background = "A bright, light, scroll-stopping but clean backdrop (white, soft light gradient or a pale brand tint).";
       break;
     case "virtual_model":
       scene = `${MODEL[a.model]} naturally using or holding the product in ${SETTING[a.setting]}; a relaxed, genuine expression; culturally appropriate, modest clothing for a Pakistani audience. An AI-generated person, not a real or famous individual.`;
@@ -188,8 +224,11 @@ export function buildContract(ctx: BuildCtx, i: number, n: number, placement: Pl
       subjects = a.keep === "all"
         ? "Keep image 1's subject, products, layout and any text exactly; change only the mood, light, season and styling."
         : "Keep image 1's layout and its products exactly; replace the background and surroundings with the new look.";
-      scene = `Restyle image 1 into a ${RESTYLE[a.aesthetic]} look.`;
-      background = "The new look's setting — light and bright.";
+      // An EDIT of image 1, not a new photo — a live test turned a finished
+      // post into a fresh product shot and lost its text and layout.
+      scene = `Edit image 1 into a ${RESTYLE[a.aesthetic]} look. It stays the same picture: same layout, same positions, same text word for word, same products — only colours, light, mood and seasonal decorations change.`;
+      composition = "Exactly as in image 1 — same framing, same element positions, same text blocks.";
+      background = "Image 1's own background, restyled for the new look — light and bright.";
       break;
   }
   if (ctx.note) scene += ` Extra direction: ${ctx.note}`;
@@ -199,7 +238,10 @@ export function buildContract(ctx: BuildCtx, i: number, n: number, placement: Pl
     ...(ctx.hasLogo ? [{ role: "logo" as const }] : []),
   ];
   return {
-    frame: `Premium commercial product photography for ${brandName} — photo-real, tack sharp, magazine quality.`,
+    frame:
+      mode.id === "restyle"
+        ? "Image edit: restyle the attached image (image 1) — keep it recognisably the same picture."
+        : `Premium commercial product photography for ${brandName} — photo-real, tack sharp, magazine quality.`,
     scene,
     text: lines.length ? lines : "none",
     subjects,
@@ -293,7 +335,9 @@ export async function runPhotoshoot(input: PhotoshootInput): Promise<{ batchId: 
         contract,
         expectedText: expectedTextOf(contract),
         qualityCheck: input.qualityCheck,
-        qualityRules: text ? GLOBAL_DESIGN_RULE : "Light and bright overall — never a dark or black background.",
+        // Concepts are judged as DRAFT CONCEPTs: the draft model can't keep
+        // small label words, and the final re-renders them from the photo.
+        qualityRules: `DRAFT CONCEPT. ${text ? GLOBAL_DESIGN_RULE : "Light and bright overall — never a dark or black background."}${mode.id === "restyle" ? " For this restyle, image 1's layout and text must survive word for word." : ""}`,
         extraRow: { photoshoot_mode: mode.id, tier: "draft", input_image_urls: inputUrls },
       };
       return generateAndRecord(job, placement, batchId);
