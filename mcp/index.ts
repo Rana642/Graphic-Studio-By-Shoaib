@@ -37,6 +37,7 @@ const { registerGenerationTools } = await import("./tools/generations.js");
 const { registerEnhanceTools } = await import("./tools/enhance.js");
 const { registerAssetLockedTools } = await import("./tools/asset-locked.js");
 const { registerVideoTools } = await import("./tools/videos.js");
+const { registerPhotoshootTools } = await import("./tools/photoshoot.js");
 
 const server = new McpServer({
   name: "graphics-studio-mcp-server",
@@ -48,6 +49,7 @@ registerGenerationTools(server);
 registerEnhanceTools(server);
 registerAssetLockedTools(server);
 registerVideoTools(server);
+registerPhotoshootTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

@@ -174,3 +174,16 @@ alter table video_generations enable row level security;
 alter table generations add column if not exists quality_score smallint;
 alter table generations add column if not exists quality_notes text;
 alter table generations add column if not exists quality_attempts smallint;
+
+-- Product Photoshoot (2026-10-03, lib/photoshoot.ts): Draft concepts →
+-- approve → Standard/Premium finals. Concepts and finals are generations
+-- with track 'photoshoot'; a final points at its concept. Safe to re-run.
+-- The enum value must be added in its own statement before it is used.
+alter type generation_track add value if not exists 'photoshoot';
+alter table generations add column if not exists photoshoot_mode text;
+alter table generations add column if not exists tier text;
+alter table generations add column if not exists input_image_urls jsonb;
+alter table generations add column if not exists approved_at timestamptz;
+alter table generations add column if not exists parent_generation_id uuid references generations(id) on delete set null;
+create index if not exists generations_parent_idx on generations(parent_generation_id);
+create index if not exists generations_track_idx on generations(track);

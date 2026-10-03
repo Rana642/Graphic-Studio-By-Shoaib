@@ -17,7 +17,7 @@ export type ResultRow = {
 };
 
 /** The vision quality gate's verdict under an image (lib/quality-gate.ts). */
-function QualityBadge({ r }: { r: ResultRow }) {
+export function QualityBadge({ r }: { r: ResultRow }) {
   if (r.quality_score == null) return null;
   const passed = r.quality_score >= 70 && !/^Text:/.test(r.quality_notes ?? "");
   const retried = (r.quality_attempts ?? 1) > 1;

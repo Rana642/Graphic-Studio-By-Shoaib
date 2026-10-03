@@ -6,7 +6,7 @@ export type Generation = {
   id: string;
   brand_id: string | null;
   batch_id: string;
-  track: "creative" | "asset_locked" | "subject_edit";
+  track: "creative" | "asset_locked" | "subject_edit" | "photoshoot";
   placement: string;
   model_used: string | null;
   prompt_used: string | null;
@@ -109,6 +109,7 @@ export async function insertGeneration(row: {
   quality_score?: number;
   quality_notes?: string;
   quality_attempts?: number;
+  [extra: string]: unknown;
 }): Promise<Generation> {
   const { data, error } = await db.from("generations").insert(row).select().single();
   if (error && isMissingQualityColumn(error)) {

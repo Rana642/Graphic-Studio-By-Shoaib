@@ -11,7 +11,7 @@ import "server-only";
  * data too, so the quality gate can check it letter by letter.
  */
 
-export type ReferenceRole = "logo" | "product" | "subject" | "style";
+export type ReferenceRole = "logo" | "product" | "subject" | "style" | "concept" | "source";
 
 export type TextLine = { role: string; text: string };
 
@@ -43,6 +43,8 @@ const ROLE_TEXT: Record<ReferenceRole, string> = {
   product: "the real product — keep it identical: same shape, colours, cap, label layout and label text",
   subject: "the real subject (person or product) — identity lock: reproduce it exactly as photographed",
   style: "an existing brand graphic — follow its style (colour use, layout feel, typography) only; do not copy its text, layout or objects",
+  concept: "the approved concept — keep its composition, camera angle, layout, colours and any text exactly; render it again at the highest quality",
+  source: "the image to restyle — keep its subject, products and layout; change only the mood, light, season and styling as described",
 };
 
 /** Global design rule for every brand (Shoaib, 2026-10-03): light and glassy, never dark. */
@@ -58,9 +60,14 @@ export function renderContract(c: PromptContract): string {
         .join("; ")}.`
     );
   }
+  // With a real product in the shot its own printed label must survive, so
+  // "no text" means no ADDED text there.
+  const hasRealObject = c.references.some((r) => r.role !== "style" && r.role !== "logo");
   const textBlock =
     c.text === "none" || c.text.length === 0
-      ? "No text, no readable labels, no watermark anywhere in the image."
+      ? hasRealObject
+        ? "No added text — no headline, caption, sticker or watermark. Any words printed on the product's own pack or label stay exactly as they are."
+        : "No text, no readable labels, no watermark anywhere in the image."
       : `Print exactly these words and nothing else, spelled exactly as written (a line may wrap): ${c.text
           .map((t, i) => `${i + 1}) ${t.role}: "${t.text}"`)
           .join("; ")}. No other words, no lorem ipsum, no watermark.`;

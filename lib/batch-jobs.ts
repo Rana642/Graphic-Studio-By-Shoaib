@@ -31,6 +31,7 @@ export async function submitBatchGeneration(
     .from("generations")
     .insert(
       input.placements.map((placement) => ({
+        ...input.extraRow,
         brand_id: input.brandId,
         batch_id: batchId,
         track: input.track,

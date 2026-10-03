@@ -31,6 +31,9 @@ export type GenerationBatchInput = {
   qualityCheck?: boolean;
   /** Extra rules the judge applies (e.g. the global light/glass rule). */
   qualityRules?: string;
+  /** Extra columns written on every row (e.g. photoshoot_mode,
+   *  parent_generation_id) — needs the matching SQL. */
+  extraRow?: Record<string, unknown>;
 };
 
 /** How many images one placement may cost when the gate fails: the first
@@ -93,40 +96,43 @@ export async function runGenerationBatch(
   if (input.delivery === "batch") return submitBatchGeneration(input);
   const batchId = crypto.randomUUID();
 
-  const results = await Promise.all(
-    input.placements.map(async (placement) => {
-      try {
-        const { best, attempts, costUsd } = await generateChecked(input, placement);
-        const imageUrl = await uploadGeneratedImage(input.brandId, placement.id, best.image.imageBase64, best.image.mimeType);
-        return insertGeneration({
-          brand_id: input.brandId,
-          batch_id: batchId,
-          track: input.track,
-          placement: placement.id,
-          model_used: best.image.modelUsed,
-          prompt_used: input.prompt,
-          copy_label: input.copy?.label,
-          copy_hook: input.copy?.hook,
-          copy_cta: input.copy?.cta,
-          image_url: imageUrl,
-          est_cost_usd: costUsd,
-          status: "complete",
-          ...(best.quality ? { quality_score: best.quality.score, quality_notes: qualityNote(best.quality), quality_attempts: attempts } : {}),
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        return insertGeneration({
-          brand_id: input.brandId,
-          batch_id: batchId,
-          track: input.track,
-          placement: placement.id,
-          prompt_used: input.prompt,
-          status: "failed",
-          error_message: message,
-        });
-      }
-    })
-  );
-
+  const results = await Promise.all(input.placements.map((placement) => generateAndRecord(input, placement, batchId)));
   return { batchId, results };
+}
+
+/** One placement, instant: generate through the quality gate, upload, and
+ *  record the row (or the failure) under the given batch id. */
+export async function generateAndRecord(input: GenerationBatchInput, placement: Placement, batchId: string): Promise<Generation> {
+  try {
+    const { best, attempts, costUsd } = await generateChecked(input, placement);
+    const imageUrl = await uploadGeneratedImage(input.brandId, placement.id, best.image.imageBase64, best.image.mimeType);
+    return await insertGeneration({
+      ...input.extraRow,
+      brand_id: input.brandId,
+      batch_id: batchId,
+      track: input.track,
+      placement: placement.id,
+      model_used: best.image.modelUsed,
+      prompt_used: input.prompt,
+      copy_label: input.copy?.label,
+      copy_hook: input.copy?.hook,
+      copy_cta: input.copy?.cta,
+      image_url: imageUrl,
+      est_cost_usd: costUsd,
+      status: "complete",
+      ...(best.quality ? { quality_score: best.quality.score, quality_notes: qualityNote(best.quality), quality_attempts: attempts } : {}),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return insertGeneration({
+      ...input.extraRow,
+      brand_id: input.brandId,
+      batch_id: batchId,
+      track: input.track,
+      placement: placement.id,
+      prompt_used: input.prompt,
+      status: "failed",
+      error_message: message,
+    });
+  }
 }
