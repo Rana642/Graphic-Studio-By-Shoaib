@@ -34,6 +34,8 @@ export function buildImagePrompt(brand: Brand, colors: string[], copy: Copy): st
       ? `In a thin footer band at the very bottom edge, print this contact line in small, clean text: "${footer}".`
       : "",
     "Clean, premium layout. Do not add random decorative shapes, extra text, or misspelled words.",
+    // Shoaib's global design rule for every brand (2026-10-03): light and glassy, never dark.
+    "Light, professional look: bright photo scenes, white or soft light gradients; text on frosted-glass cards (white 60–75% opacity, background blur, thin white border, soft shadow, subtle glossy highlight). No dark or black backgrounds, panels, bands or overlays; dark colours only for text.",
   ]
     .filter(Boolean)
     .join(" ");
