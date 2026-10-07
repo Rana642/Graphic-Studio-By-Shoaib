@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PROVIDERS, type Provider } from "../../lib/image-providers/types.js";
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -149,7 +150,7 @@ Args:
   - copyLabel (string, required): small badge text near the top, e.g. "NEW ARRIVAL". Keep to ~3 words — it gets printed directly onto the image.
   - copyHook (string, required): the bold main headline, centered. Keep to ~6 words.
   - copyCta (string, required): call-to-action inside a button shape near the bottom, e.g. "Shop Now". Keep to ~3 words.
-  - provider ("nano-banana" | "gpt-image", required): which image model family to use.
+  - provider ("nano-banana" | "gpt-image" | "flux", required): which image model family to use — flux = FLUX 3 (Black Forest Labs), which has no batch delivery.
   - tier ("draft" | "standard" | "premium", required): quality/cost tier — draft is cheapest for concepting, premium is the best-quality final export.
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements, e.g. ["ig_feed", "ig_story"]. One image is generated per placement, in parallel, sharing the same batch.
   - delivery ("instant" | "batch", optional, default "instant"): "batch" sends the job through the provider's Batch API — same model and quality at 50% of the price, ready within 24 hours. Batch results come back with status "pending"; collect them later with studio_check_batches. Use batch whenever the images aren't needed right away.
@@ -171,7 +172,7 @@ Error Handling:
         copyLabel: z.string().min(1).max(60).describe('Small badge text near the top, e.g. "NEW ARRIVAL"'),
         copyHook: z.string().min(1).max(200).describe("Bold main headline, centered"),
         copyCta: z.string().min(1).max(60).describe('Call-to-action button text, e.g. "Shop Now"'),
-        provider: z.enum(["nano-banana", "gpt-image"]).describe("Image model family to use"),
+        provider: z.enum(PROVIDERS).describe("Image model family to use"),
         tier: z.enum(["draft", "standard", "premium"]).describe("Quality/cost tier"),
         placementIds: z
           .array(z.string())
@@ -191,7 +192,7 @@ Error Handling:
       copyLabel: string;
       copyHook: string;
       copyCta: string;
-      provider: "nano-banana" | "gpt-image";
+      provider: Provider;
       tier: "draft" | "standard" | "premium";
       placementIds: string[];
       delivery: "instant" | "batch";
@@ -262,7 +263,7 @@ Error Handling:
 
 Args:
   - prompt (string, required, 1-2000 chars): the full creative brief — describe everything that should appear in the image, including any text to render (spell it out exactly as it should appear).
-  - provider ("nano-banana" | "gpt-image", required): which image model family to use.
+  - provider ("nano-banana" | "gpt-image" | "flux", required): which image model family to use — flux = FLUX 3 (Black Forest Labs), which has no batch delivery.
   - tier ("draft" | "standard" | "premium", required): quality/cost tier.
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements. One image is generated per placement, in parallel, sharing the same batch.
   - brandId (string, UUID, optional): purely for filing/history and to pull that brand's reference images in for style consistency — does NOT inject that brand's colors, voice, or footer into the prompt. Omit for a fully standalone generation.
@@ -282,7 +283,7 @@ Error Handling:
           .min(1)
           .max(2000)
           .describe("Full creative brief — everything to render, spelled out exactly"),
-        provider: z.enum(["nano-banana", "gpt-image"]).describe("Image model family to use"),
+        provider: z.enum(PROVIDERS).describe("Image model family to use"),
         tier: z.enum(["draft", "standard", "premium"]).describe("Quality/cost tier"),
         placementIds: z
           .array(z.string())
@@ -309,7 +310,7 @@ Error Handling:
     },
     async (params: {
       prompt: string;
-      provider: "nano-banana" | "gpt-image";
+      provider: Provider;
       tier: "draft" | "standard" | "premium";
       placementIds: string[];
       brandId?: string;
@@ -386,7 +387,7 @@ This is near-perfect fidelity, not guaranteed pixel-perfect (it's still an AI ed
 Args:
   - subjectImagePath (string, required): local file path to the real photo (person or product) to preserve.
   - sceneDescription (string, required, 1-1000 chars): describe ONLY the new background/scene/mood — do not describe the subject, it's taken from the photo as-is.
-  - provider ("nano-banana" | "gpt-image", required): which image model family to use.
+  - provider ("nano-banana" | "gpt-image" | "flux", required): which image model family to use — flux = FLUX 3 (Black Forest Labs), which has no batch delivery.
   - tier ("draft" | "standard" | "premium", required): quality/cost tier.
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements.
   - brandId (string, UUID, optional): files the result under that brand's history only — has no effect on the prompt.
@@ -406,7 +407,7 @@ Error Handling:
           .min(1)
           .max(1000)
           .describe("Describe only the new background/scene — not the subject"),
-        provider: z.enum(["nano-banana", "gpt-image"]).describe("Image model family to use"),
+        provider: z.enum(PROVIDERS).describe("Image model family to use"),
         tier: z.enum(["draft", "standard", "premium"]).describe("Quality/cost tier"),
         placementIds: z
           .array(z.string())
@@ -429,7 +430,7 @@ Error Handling:
     async (params: {
       subjectImagePath: string;
       sceneDescription: string;
-      provider: "nano-banana" | "gpt-image";
+      provider: Provider;
       tier: "draft" | "standard" | "premium";
       placementIds: string[];
       brandId?: string;

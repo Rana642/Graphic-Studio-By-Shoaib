@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PLACEMENTS } from "@/lib/placements";
 import GenerationResults, { type ResultRow } from "./GenerationResults";
 import DeliveryChoice, { deliveryMultiplier, type Delivery } from "./DeliveryChoice";
+import { PROVIDERS, PROVIDER_LABEL, providerHasBatch, type Provider } from "@/lib/image-providers/types";
 
 type ApiResponse = {
   copy?: { label: string; hook: string; cta: string };
@@ -15,9 +16,13 @@ const REGULAR_TRACK_IDS = ["ig_feed", "ig_story", "meta_ad"];
 
 export default function GenerateForm({ brandId }: { brandId: string }) {
   const [offer, setOffer] = useState("");
-  const [provider, setProvider] = useState<"nano-banana" | "gpt-image">("nano-banana");
+  const [provider, setProvider] = useState<Provider>("nano-banana");
   const [tier, setTier] = useState<"draft" | "standard" | "premium">("standard");
   const [delivery, setDelivery] = useState<Delivery>("instant");
+  const pickProvider = (p: Provider) => {
+    setProvider(p);
+    if (!providerHasBatch(p)) setDelivery("instant");
+  };
   const [qualityCheck, setQualityCheck] = useState(true);
   const [placementIds, setPlacementIds] = useState<string[]>(REGULAR_TRACK_IDS);
   const [loading, setLoading] = useState(false);
@@ -96,11 +101,14 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
             <label className="mb-1.5 block text-sm text-muted">Model</label>
             <select
               value={provider}
-              onChange={(e) => setProvider(e.target.value as typeof provider)}
+              onChange={(e) => pickProvider(e.target.value as Provider)}
               className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
             >
-              <option value="nano-banana">Nano Banana (Google)</option>
-              <option value="gpt-image">GPT Image (OpenAI)</option>
+              {PROVIDERS.map((p) => (
+                <option key={p} value={p}>
+                  {PROVIDER_LABEL[p]}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -117,7 +125,7 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
           </div>
         </div>
 
-        <DeliveryChoice value={delivery} onChange={setDelivery} />
+        <DeliveryChoice value={delivery} onChange={setDelivery} batchAvailable={providerHasBatch(provider)} />
 
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={qualityCheck} onChange={(e) => setQualityCheck(e.target.checked)} />

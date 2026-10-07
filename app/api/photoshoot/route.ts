@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { PROVIDERS } from "@/lib/image-providers/types";
 import { getUser } from "@/lib/supabase/auth";
 import { runPhotoshoot } from "@/lib/photoshoot";
 import { PHOTOSHOOT_MODES } from "@/lib/photoshoot-modes";
@@ -14,7 +15,7 @@ const bodySchema = z.object({
   note: z.string().max(500).optional(),
   text: z.object({ headline: z.string().max(120).optional(), cta: z.string().max(40).optional() }).optional(),
   count: z.number().int().min(1).max(7).optional(),
-  provider: z.enum(["nano-banana", "gpt-image"]),
+  provider: z.enum(PROVIDERS),
   qualityCheck: z.boolean().optional(),
 });
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { PROVIDERS } from "@/lib/image-providers/types";
 import { getUser } from "@/lib/supabase/auth";
 import { finalizeConcepts } from "@/lib/photoshoot";
 
@@ -7,7 +8,7 @@ const bodySchema = z.object({
   conceptIds: z.array(z.string().uuid()).min(1).max(10),
   tier: z.enum(["standard", "premium"]),
   delivery: z.enum(["instant", "batch"]).optional(),
-  provider: z.enum(["nano-banana", "gpt-image"]).optional(),
+  provider: z.enum(PROVIDERS).optional(),
   qualityCheck: z.boolean().optional(),
 });
 

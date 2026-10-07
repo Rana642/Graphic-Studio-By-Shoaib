@@ -1,5 +1,5 @@
 import "server-only";
-import { generateImage, type Delivery, type GenerateImageResult, type Provider, type Tier } from "./image-providers";
+import { generateImage, providerHasBatch, type Delivery, type GenerateImageResult, type Provider, type Tier } from "./image-providers";
 import type { Placement } from "./placements";
 import { insertGeneration, uploadGeneratedImage, type Generation } from "./generations";
 import { submitBatchGeneration } from "./batch-jobs";
@@ -93,7 +93,10 @@ async function generateChecked(input: GenerationBatchInput, placement: Placement
 export async function runGenerationBatch(
   input: GenerationBatchInput
 ): Promise<{ batchId: string; results: Generation[] }> {
-  if (input.delivery === "batch") return submitBatchGeneration(input);
+  if (input.delivery === "batch") {
+    if (!providerHasBatch(input.provider)) throw new Error('FLUX has no Batch API — choose "Now" delivery for FLUX.');
+    return submitBatchGeneration(input);
+  }
   const batchId = crypto.randomUUID();
 
   const results = await Promise.all(input.placements.map((placement) => generateAndRecord(input, placement, batchId)));

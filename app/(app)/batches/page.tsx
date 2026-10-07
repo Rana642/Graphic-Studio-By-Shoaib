@@ -5,7 +5,7 @@ import { BatchesRefresher, BatchGroupResults } from "@/components/BatchesClient"
 export const dynamic = "force-dynamic";
 
 const PROVIDER_LABEL = (model: string | null) =>
-  !model ? "—" : model.startsWith("gemini") ? `Nano Banana · ${model}` : `GPT Image · ${model}`;
+  !model ? "—" : model.startsWith("gemini") ? `Nano Banana · ${model}` : model.startsWith("flux") ? `FLUX · ${model}` : `GPT Image · ${model}`;
 
 export default async function BatchesPage() {
   let sync: BatchSyncSummary | null = null;

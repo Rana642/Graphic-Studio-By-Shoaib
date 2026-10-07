@@ -1,6 +1,22 @@
 import type { Placement } from "../placements";
 
-export type Provider = "nano-banana" | "gpt-image";
+/** Every image model family the app can call (client-safe — the forms and
+ *  the API/MCP schemas all read this list). */
+export const PROVIDERS = ["nano-banana", "gpt-image", "flux"] as const;
+export type Provider = (typeof PROVIDERS)[number];
+
+export const PROVIDER_LABEL: Record<Provider, string> = {
+  "nano-banana": "Nano Banana (Google)",
+  "gpt-image": "GPT Image (OpenAI)",
+  flux: "FLUX 3 (Black Forest Labs)",
+};
+
+/** FLUX has no Batch API — its images always come back "Now". */
+export const providerHasBatch = (provider: Provider) => provider !== "flux";
+
+/** Which family made an image, from the model id saved on its row. */
+export const providerOfModel = (model: string | null | undefined): Provider =>
+  model?.startsWith("gemini") ? "nano-banana" : model?.startsWith("flux") ? "flux" : "gpt-image";
 
 /**
  * "premium" = best-quality model (Nano Banana Pro / GPT Image 2.5 Sunburst max) —

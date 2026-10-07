@@ -27,5 +27,5 @@ Key rules:
   model regenerate the actual photographed object — composite the real
   pixels in with `sharp`, AI only supplies the surrounding frame/background.
 - Model calls live behind a shared interface in `lib/image-providers/` so
-  Nano Banana Pro and GPT Image are interchangeable per-generation, not
+  Nano Banana Pro, GPT Image and FLUX 3 are interchangeable per-generation, not
   hardcoded to one vendor.

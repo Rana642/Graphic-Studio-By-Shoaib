@@ -6,7 +6,7 @@ import { generateAndRecord, runGenerationBatch, type GenerationBatchInput } from
 import { expectedTextFromPrompt, expectedTextOf, GLOBAL_DESIGN_RULE, renderContract, type PromptContract } from "./prompt-contract";
 import { loadBrandLogo } from "./references";
 import { getGeneration, type Generation } from "./generations";
-import type { Delivery, Provider, Tier } from "./image-providers";
+import { providerOfModel, type Delivery, type Provider, type Tier } from "./image-providers";
 import { getPhotoshootMode, withDefaultAnswers, type PhotoshootMode, type PhotoshootModeId } from "./photoshoot-modes";
 
 /**
@@ -352,8 +352,6 @@ export async function approveConcept(id: string, approved: boolean): Promise<voi
   const { error } = await db.from("generations").update({ approved_at: approved ? new Date().toISOString() : null }).eq("id", id);
   if (error) throw photoshootHint(error);
 }
-
-const providerOfModel = (model: string | null): Provider => (model?.startsWith("gemini") ? "nano-banana" : "gpt-image");
 
 /** Step 3 — the final of each approved concept, at Standard/Premium, with the
  *  concept as image 1 so the composition carries over. Marks it approved. */

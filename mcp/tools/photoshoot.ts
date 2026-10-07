@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PROVIDERS, type Provider } from "../../lib/image-providers/types.js";
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -63,7 +64,7 @@ Args:
   - note (string, optional): extra direction.
   - headline / cta (string, optional): text to put on the image (otherwise clean photos).
   - count (number, optional): one of the mode's counts.
-  - provider ("gpt-image" | "nano-banana", default "gpt-image").
+  - provider ("gpt-image" | "nano-banana" | "flux", default "gpt-image").
   - qualityCheck (boolean, default true).
 
 Returns (JSON): { "batchId", "concepts": [{ "id", "placement", "status", "image_url", "quality_score", "quality_notes" }] }.`,
@@ -76,7 +77,7 @@ Returns (JSON): { "batchId", "concepts": [{ "id", "placement", "status", "image_
         headline: z.string().max(120).optional(),
         cta: z.string().max(40).optional(),
         count: z.number().int().min(1).max(7).optional(),
-        provider: z.enum(["gpt-image", "nano-banana"]).default("gpt-image"),
+        provider: z.enum(PROVIDERS).default("gpt-image"),
         qualityCheck: z.boolean().default(true),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -90,7 +91,7 @@ Returns (JSON): { "batchId", "concepts": [{ "id", "placement", "status", "image_
       headline?: string;
       cta?: string;
       count?: number;
-      provider: "gpt-image" | "nano-banana";
+      provider: Provider;
       qualityCheck: boolean;
     }) => {
       try {
@@ -159,12 +160,12 @@ Returns (JSON): { "finals": [{ "id", "parent_generation_id", "status", "image_ur
         conceptIds: z.array(z.string().uuid()).min(1).max(10),
         tier: z.enum(["standard", "premium"]),
         delivery: z.enum(["instant", "batch"]).default("instant"),
-        provider: z.enum(["gpt-image", "nano-banana"]).optional(),
+        provider: z.enum(PROVIDERS).optional(),
         qualityCheck: z.boolean().default(true),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    async (p: { conceptIds: string[]; tier: "standard" | "premium"; delivery: "instant" | "batch"; provider?: "gpt-image" | "nano-banana"; qualityCheck: boolean }) => {
+    async (p: { conceptIds: string[]; tier: "standard" | "premium"; delivery: "instant" | "batch"; provider?: Provider; qualityCheck: boolean }) => {
       try {
         const finals = await finalizeConcepts(p);
         return {

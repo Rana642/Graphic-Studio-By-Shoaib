@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PHOTOSHOOT_MODES, withDefaultAnswers, type PhotoshootModeId } from "@/lib/photoshoot-modes";
+import { PROVIDERS, PROVIDER_LABEL, type Provider } from "@/lib/image-providers/types";
 
 type Upload = { id: string; base64: string; mimeType: string; previewUrl: string };
 
-const DRAFT_PRICE = { "gpt-image": 0.006, "nano-banana": 0.02 } as const;
+const DRAFT_PRICE: Record<Provider, number> = { "gpt-image": 0.006, "nano-banana": 0.02, flux: 0.048 };
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -31,7 +32,7 @@ export default function PhotoshootForm({ brands }: { brands: { id: string; name:
   const [withText, setWithText] = useState(false);
   const [headline, setHeadline] = useState("");
   const [cta, setCta] = useState("");
-  const [provider, setProvider] = useState<"gpt-image" | "nano-banana">("gpt-image");
+  const [provider, setProvider] = useState<Provider>("gpt-image");
   const [qualityCheck, setQualityCheck] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -202,9 +203,12 @@ export default function PhotoshootForm({ brands }: { brands: { id: string; name:
                 {n}
               </button>
             ))}
-          <select value={provider} onChange={(e) => setProvider(e.target.value as typeof provider)} className="rounded-lg border border-border bg-surface px-3 py-1.5">
-            <option value="gpt-image">GPT Image (OpenAI)</option>
-            <option value="nano-banana">Nano Banana (Google)</option>
+          <select value={provider} onChange={(e) => setProvider(e.target.value as Provider)} className="rounded-lg border border-border bg-surface px-3 py-1.5">
+            {PROVIDERS.map((p) => (
+              <option key={p} value={p}>
+                {PROVIDER_LABEL[p]}
+              </option>
+            ))}
           </select>
         </div>
 

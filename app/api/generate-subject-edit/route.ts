@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { PROVIDERS } from "@/lib/image-providers/types";
 import { getUser } from "@/lib/supabase/auth";
 import { getBrand } from "@/lib/brands";
 import { getPlacement } from "@/lib/placements";
@@ -12,7 +13,7 @@ import { autoRetouchPhoto } from "@/lib/retouch";
 const bodySchema = z.object({
   subjectImage: z.object({ base64: z.string(), mimeType: z.string() }),
   sceneDescription: z.string().min(1).max(1000),
-  provider: z.enum(["nano-banana", "gpt-image"]),
+  provider: z.enum(PROVIDERS),
   tier: z.enum(["draft", "standard", "premium"]),
   placementIds: z.array(z.string()).min(1).max(6),
   // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).

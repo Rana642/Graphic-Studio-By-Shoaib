@@ -32,6 +32,9 @@ separate one.
       GPT Image, draft/standard/premium tiers), copywriting, results gallery.
       Pipeline verified end-to-end against real API keys; actual image output
       still untested pending billing credits on both provider accounts.
+- [x] FLUX 3 Image (Black Forest Labs) as a third model family —
+      `lib/image-providers/flux.ts`, needs `BFL_API_KEY`. Instant only
+      (FLUX has no Batch API, so the batch option is disabled for it).
 - [x] Free-prompt generation — `/generate`, no brand required, optional
       ad-hoc reference images, optional brand tag for filing/history only.
 - [x] Enhance/upscale — "Enhance" button on any completed generation

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { QualityBadge, type ResultRow } from "./GenerationResults";
 import { deliveryMultiplier, type Delivery } from "./DeliveryChoice";
+import { providerHasBatch, providerOfModel, type Provider } from "@/lib/image-providers/types";
 
 export type ConceptRow = ResultRow & {
   model_used?: string | null;
@@ -12,10 +13,11 @@ export type ConceptRow = ResultRow & {
 };
 
 /** Per-image price of a final, by the concept's provider (lib/image-providers). */
-const FINAL_PRICE = {
+const FINAL_PRICE: Record<Provider, { standard: number; premium: number }> = {
   "gpt-image": { standard: 0.053, premium: 0.21 },
   "nano-banana": { standard: 0.04, premium: 0.134 },
-} as const;
+  flux: { standard: 0.07, premium: 0.1 },
+};
 
 /** Product Photoshoot steps 2 and 3: approve Draft concepts, then render the
  *  approved ones as Standard / Premium finals (instant or batch). */
@@ -28,8 +30,9 @@ export default function PhotoshootConcepts({ concepts: initial }: { concepts: Co
   const [error, setError] = useState<string | null>(null);
 
   const approved = concepts.filter((c) => c.approved_at && c.status === "complete");
-  const provider = concepts[0]?.model_used?.startsWith("gemini") ? "nano-banana" : "gpt-image";
-  const finalCost = approved.length * FINAL_PRICE[provider][tier] * deliveryMultiplier(delivery);
+  const provider = providerOfModel(concepts[0]?.model_used);
+  const canBatch = providerHasBatch(provider);
+  const finalCost = approved.length * FINAL_PRICE[provider][tier] * deliveryMultiplier(canBatch ? delivery : "instant");
 
   const toggleApprove = async (c: ConceptRow) => {
     setBusy(c.id);
@@ -58,7 +61,7 @@ export default function PhotoshootConcepts({ concepts: initial }: { concepts: Co
       const res = await fetch("/api/photoshoot/finalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conceptIds: approved.map((c) => c.id), tier, delivery }),
+        body: JSON.stringify({ conceptIds: approved.map((c) => c.id), tier, delivery: canBatch ? delivery : "instant" }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Final render failed.");
@@ -143,12 +146,12 @@ export default function PhotoshootConcepts({ concepts: initial }: { concepts: Co
           <option value="premium">Final: Premium</option>
         </select>
         <select
-          value={delivery}
+          value={canBatch ? delivery : "instant"}
           onChange={(e) => setDelivery(e.target.value as Delivery)}
           className="rounded-lg border border-border bg-background px-3 py-1.5"
         >
           <option value="instant">Now</option>
-          <option value="batch">Batch — 50% cheaper</option>
+          {canBatch && <option value="batch">Batch — 50% cheaper</option>}
         </select>
         <button
           type="button"

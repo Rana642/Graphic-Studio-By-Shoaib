@@ -61,7 +61,8 @@ async function copyViaOpenAI(brand: Brand, offer: string): Promise<Copy> {
 }
 
 /** Uses a cheap text model from the same provider as the chosen image
- *  model — avoids paying for a third vendor just for a few words of copy. */
+ *  model — avoids paying for a third vendor just for a few words of copy.
+ *  FLUX has no text model, so its copy goes through Gemini. */
 export function generateCopy(provider: Provider, brand: Brand, offer: string): Promise<Copy> {
-  return provider === "nano-banana" ? copyViaGemini(brand, offer) : copyViaOpenAI(brand, offer);
+  return provider === "gpt-image" ? copyViaOpenAI(brand, offer) : copyViaGemini(brand, offer);
 }
