@@ -3,18 +3,22 @@ import { BATCH_DISCOUNT, type BatchItemResult, type BatchPollResult, type Genera
 import { shrinkReferenceForBatch } from "./batch-utils";
 
 /**
- * Model IDs confirmed live against Shoaib's own OpenAI key on 2026-08-24
- * (via /v1/models). Costs are ballpark from public pricing at the same
- * date — re-check OpenAI's pricing page before relying on them for real
- * budgeting.
+ * Model IDs confirmed live against Shoaib's own OpenAI key on 2026-10-07
+ * (via /v1/models). GPT Image 2.5 (2026-09-08) shifted the quality ladder
+ * down a rung: 2.5 "high" costs what gpt-image-2 "medium" did, and 2.5
+ * "max" what gpt-image-2 "high" did. Sunburst is the detail / edit-fidelity
+ * variant (labels and small print survive close inspection); Flare is the
+ * fast one, fine for drafts. Costs are ballpark per 1024×1024 image from
+ * public pricing at the same date — re-check OpenAI's pricing page before
+ * relying on them for real budgeting.
  */
 const CONFIG_BY_TIER: Record<
   GenerateImageInput["tier"],
-  { model: string; quality?: "low" | "medium" | "high"; estCostUsd: number }
+  { model: string; quality?: "low" | "medium" | "high" | "xhigh" | "max"; estCostUsd: number }
 > = {
-  premium: { model: "gpt-image-2", quality: "high", estCostUsd: 0.19 },
-  standard: { model: "gpt-image-2", quality: "medium", estCostUsd: 0.045 },
-  draft: { model: "gpt-image-1-mini", estCostUsd: 0.005 },
+  premium: { model: "gpt-image-2.5-sunburst", quality: "max", estCostUsd: 0.21 },
+  standard: { model: "gpt-image-2.5-sunburst", quality: "high", estCostUsd: 0.053 },
+  draft: { model: "gpt-image-2.5-flare", quality: "low", estCostUsd: 0.006 },
 };
 
 const API_KEY = process.env.OPENAI_API_KEY || "";

@@ -13,7 +13,7 @@ export type ConceptRow = ResultRow & {
 
 /** Per-image price of a final, by the concept's provider (lib/image-providers). */
 const FINAL_PRICE = {
-  "gpt-image": { standard: 0.045, premium: 0.19 },
+  "gpt-image": { standard: 0.053, premium: 0.21 },
   "nano-banana": { standard: 0.04, premium: 0.134 },
 } as const;
 

@@ -6,7 +6,7 @@ import { PHOTOSHOOT_MODES, withDefaultAnswers, type PhotoshootModeId } from "@/l
 
 type Upload = { id: string; base64: string; mimeType: string; previewUrl: string };
 
-const DRAFT_PRICE = { "gpt-image": 0.005, "nano-banana": 0.02 } as const;
+const DRAFT_PRICE = { "gpt-image": 0.006, "nano-banana": 0.02 } as const;
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

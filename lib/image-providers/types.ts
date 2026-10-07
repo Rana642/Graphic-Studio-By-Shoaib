@@ -3,7 +3,7 @@ import type { Placement } from "../placements";
 export type Provider = "nano-banana" | "gpt-image";
 
 /**
- * "premium" = best-quality model (Nano Banana Pro / GPT Image 2 high) —
+ * "premium" = best-quality model (Nano Banana Pro / GPT Image 2.5 Sunburst max) —
  * "draft" = cheapest model, for concepting before spending on a final export.
  * Matches the hybrid strategy from Shoaib's own research: cheap draft to
  * approve a concept, premium for the real export.
