@@ -48,9 +48,10 @@ const ROLE_TEXT: Record<ReferenceRole, string> = {
 };
 
 /** Global design rule for every brand (Shoaib, 2026-10-03): light, never dark. The glass
- *  effect was dropped for good on 2026-10-09 ("Glass effect 1 dafa k liye bilkul khatam ker do"). */
+ *  effect was dropped for good on 2026-10-09 ("Glass effect 1 dafa k liye bilkul khatam ker do"),
+ *  and the same day scenes went cool white ("Warm feel nai cool feel ani chaiye", all projects). */
 export const GLOBAL_DESIGN_RULE =
-  "Light, professional look: bright photo scenes with a calm, light, low-detail empty area where the text goes; text sits straight on the photo. No glass effect: no frosted or glass cards, transparent shades or blur behind text. No dark or black backgrounds, panels, bands or overlays; dark colours only for text.";
+  "Light, professional look: bright photo scenes in cool, clean white daylight (neutral-to-cool white balance, white / light-grey surfaces, no beige, cream or warm tones) with a calm, light, low-detail empty area where the text goes; text sits straight on the photo. The product, its label and the logo keep their real colours. No glass effect: no frosted or glass cards, transparent shades or blur behind text. No dark or black backgrounds, panels, bands or overlays; dark colours only for text.";
 
 export function renderContract(c: PromptContract): string {
   const blocks: string[] = [];
