@@ -47,9 +47,10 @@ const ROLE_TEXT: Record<ReferenceRole, string> = {
   source: "the image to restyle — keep its subject, products and layout; change only the mood, light, season and styling as described",
 };
 
-/** Global design rule for every brand (Shoaib, 2026-10-03): light and glassy, never dark. */
+/** Global design rule for every brand (Shoaib, 2026-10-03): light, never dark. The glass
+ *  effect was dropped for good on 2026-10-09 ("Glass effect 1 dafa k liye bilkul khatam ker do"). */
 export const GLOBAL_DESIGN_RULE =
-  "Light, professional look: bright photo scenes, white or soft light gradients; text on frosted-glass cards (white 60–75% opacity, background blur, thin white border, soft shadow, subtle glossy highlight). No dark or black backgrounds, panels, bands or overlays; dark colours only for text.";
+  "Light, professional look: bright photo scenes with a calm, light, low-detail empty area where the text goes; text sits straight on the photo. No glass effect: no frosted or glass cards, transparent shades or blur behind text. No dark or black backgrounds, panels, bands or overlays; dark colours only for text.";
 
 export function renderContract(c: PromptContract): string {
   const blocks: string[] = [];

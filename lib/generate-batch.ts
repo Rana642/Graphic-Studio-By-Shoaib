@@ -29,7 +29,7 @@ export type GenerationBatchInput = {
   expectedText?: string[];
   /** Vision quality gate (lib/quality-gate.ts). Defaults to on. */
   qualityCheck?: boolean;
-  /** Extra rules the judge applies (e.g. the global light/glass rule). */
+  /** Extra rules the judge applies (e.g. the global light, no-glass rule). */
   qualityRules?: string;
   /** Extra columns written on every row (e.g. photoshoot_mode,
    *  parent_generation_id) — needs the matching SQL. */

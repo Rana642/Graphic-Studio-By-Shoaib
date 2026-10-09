@@ -504,7 +504,7 @@ Error Handling:
     "studio_check_quality",
     {
       title: "Check an Image's Quality",
-      description: `Run the vision quality gate on any image — a past generation, a local file or a public link — without generating anything. An AI reviewer (OpenAI gpt-5.4-mini) checks that every expected text line appears spelled exactly, flags invented or garbled words, compares the logo/product with their reference images, applies design rules (e.g. "light and glassy, no dark colours") and scores overall polish 0-100. Use it to QA graphics made elsewhere too (ChatGPT, scripts) before they are posted.
+      description: `Run the vision quality gate on any image — a past generation, a local file or a public link — without generating anything. An AI reviewer (OpenAI gpt-5.4-mini) checks that every expected text line appears spelled exactly, flags invented or garbled words, compares the logo/product with their reference images, applies design rules (e.g. "light, no glass effect, no dark colours") and scores overall polish 0-100. Use it to QA graphics made elsewhere too (ChatGPT, scripts) before they are posted.
 
 Args (give exactly one of generationId / imagePath / imageUrl):
   - generationId (UUID, optional): a studio generation — its expected text and design rule are read from its saved prompt; the score is saved on the row.
@@ -521,7 +521,7 @@ Returns (JSON): { "score", "passed", "text_ok", "wrong_text", "extra_text", "iss
         imagePath: z.string().optional().describe("Local image file to check"),
         imageUrl: z.string().url().optional().describe("Public https image link to check"),
         expectedText: z.array(z.string()).optional().describe("Exact lines the image must contain"),
-        rules: z.string().optional().describe('Design rules, e.g. "light and glassy, no dark colours"'),
+        rules: z.string().optional().describe('Design rules, e.g. "light, no glass effect, no dark colours"'),
         brief: z.string().optional().describe("What the image is meant to show"),
         logoPath: z.string().optional().describe("Local logo file to compare with"),
         productPath: z.string().optional().describe("Local product photo to compare with"),
