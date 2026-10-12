@@ -68,8 +68,10 @@ async function fetchResultUrl(processId: string): Promise<string> {
   });
   if (!res.ok) throw new Error(`Topaz download fetch failed: ${res.status} ${await res.text()}`);
   const json = await res.json();
-  if (!json.url) throw new Error("Topaz download response had no url.");
-  return json.url as string;
+  // The live API returns `download_url` (plus `head_url`); `url` is the older documented name — accept both.
+  const url = json.download_url ?? json.url;
+  if (!url) throw new Error("Topaz download response had no download_url.");
+  return url as string;
 }
 
 /** Rough ballpark only — Topaz bills in credits against your plan
