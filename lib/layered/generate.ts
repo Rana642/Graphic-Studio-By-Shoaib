@@ -165,7 +165,9 @@ export async function recomposeLayered(input: { generationId: string; label?: st
     : { name: saved.brand?.name ?? "", primary_hex: saved.brand?.primary ?? "#0f0f14", accent_hex: saved.brand?.accent ?? null, font_family: saved.brand?.font_family ?? null };
 
   const preset = (PRESETS as readonly string[]).includes(saved.preset ?? "") ? (saved.preset as Preset) : "auto";
-  const composed = await composeLayered({ background, width, height, content, brand: style, logo, preset });
+  // Keep the saved layout, unless the new words land on something busy: then let the engine pick the best one.
+  let composed = await composeLayered({ background, width, height, content, brand: style, logo, preset });
+  if (!composed.report.contrastPass) composed = await composeLayered({ background, width, height, content, brand: style, logo, preset: "auto" });
   const imageUrl = await uploadGeneratedImage(row.brand_id, `${row.placement}-edit`, composed.png.toString("base64"), "image/png");
 
   const { data, error } = await db

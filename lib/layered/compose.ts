@@ -22,6 +22,8 @@ const INK = "#0f0f14";
 const WHITE = "#ffffff";
 /** WCAG AA for large text (a headline); small text would need 4.5. */
 const HEADLINE_MIN_CONTRAST = 3;
+/** More than this share of the letters' own pixels on a background they can't be read on fails the check. */
+const MAX_HARD_SHARE = 0.01;
 
 export type BrandStyle = { name: string; primary_hex: string; accent_hex?: string | null; font_family?: string | null };
 export type ComposeContent = { label?: string; hook: string; cta?: string };
@@ -40,6 +42,8 @@ export type ComposeResult = {
     /** Worst-case contrast of the headline against the pixels behind it. */
     contrast: number;
     contrastPass: boolean;
+    /** Share of the pixels behind the headline it cannot be read on (0-1). */
+    hardToReadShare: number;
     notes: string[];
   };
 };
@@ -125,23 +129,61 @@ function regionLuminance(raw: Buffer, width: number, height: number, box: Box) {
       values.push(lum(raw[i] ?? 0, raw[i + 1] ?? 0, raw[i + 2] ?? 0));
     }
   }
-  if (values.length === 0) return { dark: 0.5, light: 0.5 };
+  if (values.length === 0) return { dark: 0.5, light: 0.5, values };
   values.sort((a, b) => a - b);
-  return { dark: values[Math.floor(values.length * 0.1)] ?? 0, light: values[Math.floor(values.length * 0.9)] ?? 1 };
+  return { dark: values[Math.floor(values.length * 0.1)] ?? 0, light: values[Math.floor(values.length * 0.9)] ?? 1, values };
 }
 
-/** Ink or white for the headline: whichever stays more readable at its worst pixel. */
-function pickTextColor(region: { dark: number; light: number }) {
-  const inkWorst = ratio(hexLum(INK), region.dark); // dark text is hardest to read on the darkest pixels
-  const whiteWorst = ratio(1, region.light); // white text is hardest to read on the lightest pixels
-  return inkWorst >= whiteWorst ? { color: INK, contrast: inkWorst } : { color: WHITE, contrast: whiteWorst };
+/** Share of the sampled pixels behind the text that the colour cannot be read on (contrast under 3:1). */
+const hardToRead = (textLum: number, values: number[]) =>
+  values.length === 0 ? 0 : values.filter((v) => ratio(textLum, v) < HEADLINE_MIN_CONTRAST).length / values.length;
+
+/** Ink or white for the headline: the one with the fewest unreadable pixels behind it, then the better worst-case contrast. */
+function pickTextColor(region: { dark: number; light: number; values: number[] }) {
+  const inkLum = hexLum(INK);
+  const options = [
+    { color: INK, contrast: ratio(inkLum, region.dark), share: hardToRead(inkLum, region.values) }, // dark text is hardest to read on the darkest pixels
+    { color: WHITE, contrast: ratio(1, region.light), share: hardToRead(1, region.values) }, // white text on the lightest
+  ];
+  options.sort((a, b) => a.share - b.share || b.contrast - a.contrast);
+  return options[0] as { color: string; contrast: number; share: number };
+}
+
+/** The headline as SVG <text> lines (the same markup draws the real headline and the glyph mask used to check it). */
+function headlineText(layout: LayoutZones, fit: { size: number; lines: string[]; lineHeight: number }, face: Face, urdu: boolean, color: string): string {
+  const anchor = layout.align === "center" ? "middle" : urdu ? "end" : "start";
+  const rtl = urdu ? ' direction="rtl"' : "";
+  return fit.lines
+    .map((line, i) => {
+      const x = layout.align === "center" ? layout.hook.x + layout.hook.w / 2 : urdu ? layout.hook.x + layout.hook.w : layout.hook.x;
+      const y = layout.hook.y + fit.size * 0.88 + i * fit.size * fit.lineHeight;
+      return `<text x="${x}" y="${y}" text-anchor="${anchor}"${rtl} font-family="${face.family}" font-weight="${face.weight}" font-size="${fit.size}" fill="${color}">${esc(line)}</text>`;
+    })
+    .join("");
+}
+
+/** Luminance of the background pixels that sit exactly under the letters (alpha > 50% in the mask). */
+function glyphLuminance(raw: Buffer, width: number, height: number, mask: Buffer, box: Box) {
+  const x0 = Math.max(0, Math.floor(box.x)), y0 = Math.max(0, Math.floor(box.y));
+  const x1 = Math.min(width, Math.ceil(box.x + box.w)), y1 = Math.min(height, Math.ceil(box.y + box.h));
+  const values: number[] = [];
+  for (let y = y0; y < y1; y += 2) {
+    for (let x = x0; x < x1; x += 2) {
+      if ((mask[(y * width + x) * 4 + 3] ?? 0) <= 128) continue;
+      const i = (y * width + x) * 3;
+      values.push(lum(raw[i] ?? 0, raw[i + 1] ?? 0, raw[i + 2] ?? 0));
+    }
+  }
+  if (values.length === 0) return regionLuminance(raw, width, height, box);
+  values.sort((a, b) => a - b);
+  return { dark: values[Math.floor(values.length * 0.1)] ?? 0, light: values[Math.floor(values.length * 0.9)] ?? 1, values };
 }
 
 const onFill = (fillHex: string) => (ratio(hexLum(INK), hexLum(fillHex)) >= ratio(1, hexLum(fillHex)) ? INK : WHITE);
 
 // --- planning and rendering --------------------------------------------------
 
-function plan(preset: Preset, canvas: { width: number; height: number }, raw: Buffer, content: ComposeContent, headingFace: Face, measure: Measure) {
+function plan(preset: Preset, canvas: { width: number; height: number }, raw: Buffer, content: ComposeContent, headingFace: Face, urdu: boolean, measure: Measure) {
   const base = layoutFor(canvas.width, canvas.height, preset);
   const short = Math.min(canvas.width, canvas.height);
   const fit = fitHeadline(content.hook, headingFace, base.hook, short, measure);
@@ -171,7 +213,12 @@ function plan(preset: Preset, canvas: { width: number; height: number }, raw: Bu
     w: widest,
     h: textH,
   };
-  const picked = pickTextColor(regionLuminance(raw, canvas.width, canvas.height, textBox));
+  const mask = new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}">${headlineText(layout, fit, headingFace, urdu, "#000000")}</svg>`, {
+    font: { loadSystemFonts: false, fontFiles: FONT_FILES },
+    background: "rgba(0,0,0,0)",
+  })
+    .render().pixels;
+  const picked = pickTextColor(glyphLuminance(raw, canvas.width, canvas.height, Buffer.from(mask), textBox));
   return { layout, fit, textBox, ...picked };
 }
 
@@ -195,17 +242,17 @@ export async function composeLayered(input: {
   const raw = rawInfo.data;
 
   const candidates = input.preset && input.preset !== "auto" ? [input.preset] : [...PRESETS];
-  const plans = candidates.map((p) => plan(p, { width, height }, raw, content, heading, measure));
-  const best = plans.reduce((a, b) => (b.contrast > a.contrast + 0.05 ? b : a));
-  const { layout, fit, textBox, color, contrast } = best;
+  const plans = candidates.map((p) => plan(p, { width, height }, raw, content, heading, urdu, measure));
+  const better = (b: (typeof plans)[number], a: (typeof plans)[number]) => b.share < a.share - 0.002 || (Math.abs(b.share - a.share) <= 0.002 && b.contrast > a.contrast + 0.05);
+  const best = plans.reduce((a, b) => (better(b, a) ? b : a));
+  const { layout, fit, textBox, color, contrast, share } = best;
   if (!fit.fits) notes.push("The headline is too long for two lines at a readable size: shorten it.");
+  if (share > MAX_HARD_SHARE) notes.push(`${Math.round(share * 100)}% of the pixels behind the headline are hard to read (an object or busy detail sits behind the text). Try another layout, a shorter headline or a calmer background.`);
   if (contrast < HEADLINE_MIN_CONTRAST) notes.push(`The headline's worst-case contrast is ${contrast.toFixed(1)}:1 (needs ${HEADLINE_MIN_CONTRAST}:1): the background behind it is too busy. Use a calmer background area.`);
   if (!input.logo && layout.logo.w > 0) notes.push("No logo was given.");
 
   const short = Math.min(width, height);
   const shapes: string[] = [];
-  const anchor = layout.align === "center" ? "middle" : "start";
-  const rtl = urdu ? ' direction="rtl"' : "";
   const accent = brand.accent_hex || brand.primary_hex;
 
   // Badge label
@@ -221,13 +268,7 @@ export async function composeLayered(input: {
   }
 
   // Headline
-  fit.lines.forEach((line, i) => {
-    const x = layout.align === "center" ? layout.hook.x + layout.hook.w / 2 : urdu ? layout.hook.x + layout.hook.w : layout.hook.x;
-    const y = layout.hook.y + fit.size * 0.88 + i * fit.size * fit.lineHeight;
-    shapes.push(
-      `<text x="${x}" y="${y}" text-anchor="${urdu && layout.align !== "center" ? "end" : anchor}"${rtl} font-family="${heading.family}" font-weight="${heading.weight}" font-size="${fit.size}" fill="${color}">${esc(line)}</text>`
-    );
-  });
+  shapes.push(headlineText(layout, fit, heading, urdu, color));
 
   // CTA button
   if (content.cta?.trim()) {
@@ -268,6 +309,7 @@ export async function composeLayered(input: {
     content,
     zones: layout satisfies LayoutZones,
     headline: { size: fit.size, lines: fit.lines, color, box: textBox },
+    report: { contrastPass: contrast >= HEADLINE_MIN_CONTRAST && share <= MAX_HARD_SHARE, contrast: Number(contrast.toFixed(2)), hardToReadShare: Number(share.toFixed(3)), notes },
     logo: logoBox,
     short,
   };
@@ -275,6 +317,6 @@ export async function composeLayered(input: {
   return {
     png,
     layoutJson,
-    report: { preset: layout.preset, hookFontSize: fit.size, hookLines: fit.lines, textColor: color, contrast: Number(contrast.toFixed(2)), contrastPass: contrast >= HEADLINE_MIN_CONTRAST, notes },
+    report: { preset: layout.preset, hookFontSize: fit.size, hookLines: fit.lines, textColor: color, contrast: Number(contrast.toFixed(2)), contrastPass: contrast >= HEADLINE_MIN_CONTRAST && share <= MAX_HARD_SHARE, hardToReadShare: Number(share.toFixed(3)), notes },
   };
 }

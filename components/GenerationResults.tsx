@@ -16,7 +16,7 @@ export type ResultRow = {
   quality_notes?: string | null;
   quality_attempts?: number | null;
   /** Exact-text designs: the saved recipe; its presence enables "Edit text". */
-  layout_json?: { content?: { label?: string; hook?: string; cta?: string } } | null;
+  layout_json?: { content?: { label?: string; hook?: string; cta?: string }; report?: { contrastPass?: boolean; notes?: string[] } } | null;
 };
 
 /** The vision quality gate's verdict under an image (lib/quality-gate.ts). */
@@ -134,6 +134,11 @@ export default function GenerationResults({
                   </a>
                 </div>
                 <QualityBadge r={r} />
+                {r.layout_json?.report && r.layout_json.report.contrastPass === false ? (
+                  <p className="mt-2 text-xs text-danger">
+                    ⚠ {r.layout_json.report.notes?.[0] ?? "Some letters sit on a busy part of the picture."}
+                  </p>
+                ) : null}
                 {onEdited && r.layout_json && !r.upscaled_image_url ? <EditText key={r.image_url} row={r} onEdited={onEdited} /> : null}
                 {r.upscaled_image_url ? (
                   <p className="mt-2 text-xs text-muted">✨ Enhanced with Topaz</p>
