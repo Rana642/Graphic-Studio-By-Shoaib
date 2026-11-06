@@ -73,7 +73,14 @@ separate one.
       (low / medium / high, GPT Image + "Now" only) on the three generate
       forms and the MCP tools `studio_generate_graphics`,
       `studio_generate_from_prompt`, `studio_generate_subject_edit`. Not yet:
-      Photoshoot, Asset-Locked, SVG / GIF output, markup-guided edits.
+      Photoshoot, Asset-Locked, SVG / GIF output.
+- [x] Markup edit (2026-11-07) — `/generate/markup`: upload an image, draw
+      marks (brush / rectangle / ellipse / arrow) where it should change, say
+      what changes; GPT Image 2.6 edits only the marked places
+      (`/v1/images/edits` with `image` + `markup`, no mask). Instant only.
+      Result is saved under track `markup_edit`, which needs the "Markup edit"
+      SQL at the end of `supabase-schema.sql`. MCP: `studio_markup_edit`
+      (`regions` the tool draws, or your own transparent PNG as `markupPath`).
 - [ ] Phase 4 — Rare identity assets (mood board, business card, letterhead)
 - [ ] Deferred — auto-posting to Meta/LinkedIn
 

@@ -6,7 +6,7 @@ export type Generation = {
   id: string;
   brand_id: string | null;
   batch_id: string;
-  track: "creative" | "asset_locked" | "subject_edit" | "photoshoot";
+  track: "creative" | "asset_locked" | "subject_edit" | "photoshoot" | "markup_edit";
   placement: string;
   model_used: string | null;
   prompt_used: string | null;

@@ -187,3 +187,6 @@ alter table generations add column if not exists approved_at timestamptz;
 alter table generations add column if not exists parent_generation_id uuid references generations(id) on delete set null;
 create index if not exists generations_parent_idx on generations(parent_generation_id);
 create index if not exists generations_track_idx on generations(track);
+
+-- Markup edit (2026-11-07): history rows made by the markup-guided edit.
+alter type generation_track add value if not exists 'markup_edit';

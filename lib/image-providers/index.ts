@@ -2,6 +2,8 @@ import "server-only";
 import type { Provider, GenerateImageInput, GenerateImageResult, BatchSubmitInput, BatchSubmitResult, BatchPollResult } from "./types";
 import { nanoBananaProvider } from "./nanoBanana";
 import { gptImageProvider } from "./gptImage";
+
+export { editWithMarkup } from "./gptImage";
 import { fluxProvider } from "./flux";
 
 export type { Provider, Tier, Delivery, Complexity, GenerateImageInput, GenerateImageResult } from "./types";

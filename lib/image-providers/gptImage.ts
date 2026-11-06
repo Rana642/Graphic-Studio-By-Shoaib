@@ -1,5 +1,5 @@
 import "server-only";
-import { BATCH_DISCOUNT, type BatchItemResult, type BatchPollResult, type GenerateImageInput, type GenerateImageResult, type ImageProviderClient } from "./types";
+import { BATCH_DISCOUNT, type BatchItemResult, type BatchPollResult, type Complexity, type GenerateImageInput, type Tier, type GenerateImageResult, type ImageProviderClient } from "./types";
 import { shrinkReferenceForBatch } from "./batch-utils";
 
 /**
@@ -79,6 +79,41 @@ async function readBatchFile(fileId: string | null | undefined): Promise<BatchIt
       if (row.response?.status_code === 200 && b64) return { key, imageBase64: b64, mimeType: "image/png" };
       return { key, error: row.error?.message ?? row.response?.body?.error?.message ?? `HTTP ${row.response?.status_code ?? "?"}` };
     });
+}
+
+/**
+ * Markup-guided edit (GPT Image 2.6 only): `markup` is a transparent PNG the
+ * same pixel size as `image` that marks where the change goes. The markup
+ * applies to the first image only; `mask` and `input_fidelity` are left out,
+ * as the model page requires. Instant only (2.6 has no Batch API).
+ */
+export async function editWithMarkup(input: {
+  image: { base64: string; mimeType: string };
+  /** PNG with an alpha channel. */
+  markupBase64: string;
+  prompt: string;
+  tier: Tier;
+  complexity?: Complexity;
+}): Promise<GenerateImageResult> {
+  if (!API_KEY) throw new Error("OPENAI_API_KEY is not configured.");
+  const { model, quality, estCostUsd } = INSTANT_CONFIG[input.tier];
+
+  const form = new FormData();
+  form.append("model", model);
+  form.append("prompt", input.prompt);
+  if (quality) form.append("quality", quality);
+  if (input.complexity) form.append("complexity", input.complexity);
+  const ext = input.image.mimeType.split("/")[1] || "png";
+  form.append("image", new Blob([Uint8Array.from(Buffer.from(input.image.base64, "base64"))], { type: input.image.mimeType }), `source.${ext}`);
+  form.append("markup", new Blob([Uint8Array.from(Buffer.from(input.markupBase64, "base64"))], { type: "image/png" }), "markup.png");
+
+  const res = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${API_KEY}` },
+    body: form,
+  });
+  const imageBase64 = await extractImage(res, model);
+  return { imageBase64, mimeType: "image/png", modelUsed: model, estCostUsd };
 }
 
 export const gptImageProvider: ImageProviderClient = {
