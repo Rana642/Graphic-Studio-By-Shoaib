@@ -115,6 +115,7 @@ separate one.
       makes a centred-crop copy as `vertical` 1080x1920, `portrait` 1080x1350,
       `square` 1080x1080 or `landscape` 1920x1080 (own manifest). Needs ffmpeg
       on the PC; not yet run on this one.
+- [x] Pro offer layout + design library (2026-11-07) — `lib/layered/pro.ts`: agency-style offer post (logo pill, kicker, heavy headline, highlight bar, rounded panel with icon points, dark contact bar), all text in real fonts, free to compose. Built from a written recipe, `docs/design-library/offer-with-list.md` (principles only, no pixels copied; reference images stay private). Sample: `docs/design-library/samples/`. MCP: `studio_pro_offer`. Square to 4:5 only so far; not yet in the web UI, Story and series variants.
 - [ ] Phase 4 — Rare identity assets (mood board, business card, letterhead)
 - [ ] Deferred — auto-posting to Meta/LinkedIn
 

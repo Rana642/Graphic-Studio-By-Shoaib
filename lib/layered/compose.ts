@@ -14,12 +14,12 @@ import { layoutFor, PRESETS, type Box, type LayoutZones, type Preset } from "./l
  */
 
 const FONTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../fonts");
-const FONT_FILES = ["Archivo-700.ttf", "Archivo-800.ttf", "Archivo-900.ttf", "Inter-400.ttf", "Inter-600.ttf", "Inter.ttf", "NotoNastaliqUrdu.ttf"].map((f) =>
+export const FONT_FILES = ["Archivo-700.ttf", "Archivo-800.ttf", "Archivo-900.ttf", "Inter-400.ttf", "Inter-600.ttf", "Inter.ttf", "NotoNastaliqUrdu.ttf"].map((f) =>
   path.join(FONTS_DIR, f)
 );
 
-const INK = "#0f0f14";
-const WHITE = "#ffffff";
+export const INK = "#0f0f14";
+export const WHITE = "#ffffff";
 /** WCAG AA for large text (a headline); small text would need 4.5. */
 const HEADLINE_MIN_CONTRAST = 3;
 /** More than this share of the letters' own pixels on a background they can't be read on fails the check. */
@@ -30,7 +30,7 @@ export type ComposeContent = { label?: string; hook: string; cta?: string };
 /** Contact details for the footer strip, copied from the brand's official website. */
 export type ContactInfo = { phone?: string | null; email?: string | null; website?: string | null };
 
-type Face = { family: string; weight: number };
+export type Face = { family: string; weight: number };
 
 export type ComposeResult = {
   png: Buffer;
@@ -50,8 +50,8 @@ export type ComposeResult = {
   };
 };
 
-const hasUrdu = (s: string) => /[؀-ۿ]/.test(s);
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export const hasUrdu = (s: string) => /[؀-ۿ]/.test(s);
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function faces(brand: BrandStyle, urdu: boolean): { heading: Face; body: Face; notes: string[] } {
   const notes: string[] = [];
@@ -63,7 +63,7 @@ function faces(brand: BrandStyle, urdu: boolean): { heading: Face; body: Face; n
 }
 
 /** Width of one line of text in px, measured by rendering it (cached). */
-function makeMeasurer() {
+export function makeMeasurer() {
   const cache = new Map<string, number>();
   return (text: string, face: Face, size: number): number => {
     const key = `${face.family}|${face.weight}|${size}|${text}`;
@@ -77,7 +77,7 @@ function makeMeasurer() {
   };
 }
 
-type Measure = ReturnType<typeof makeMeasurer>;
+export type Measure = ReturnType<typeof makeMeasurer>;
 
 function wrap(text: string, face: Face, size: number, maxW: number, measure: Measure): string[] {
   const lines: string[] = [];
@@ -181,7 +181,7 @@ function glyphLuminance(raw: Buffer, width: number, height: number, mask: Buffer
   return { dark: values[Math.floor(values.length * 0.1)] ?? 0, light: values[Math.floor(values.length * 0.9)] ?? 1, values };
 }
 
-const onFill = (fillHex: string) => (ratio(hexLum(INK), hexLum(fillHex)) >= ratio(1, hexLum(fillHex)) ? INK : WHITE);
+export const onFill = (fillHex: string) => (ratio(hexLum(INK), hexLum(fillHex)) >= ratio(1, hexLum(fillHex)) ? INK : WHITE);
 
 // --- contact strip -----------------------------------------------------------
 
