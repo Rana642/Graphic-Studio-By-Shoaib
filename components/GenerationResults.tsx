@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import EnhanceButton from "./EnhanceButton";
 
@@ -41,6 +41,30 @@ function EditText({ row, onEdited }: { row: ResultRow; onEdited: (id: string, ro
   const [cta, setCta] = useState(saved.cta ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ image: string; warning: string | null } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+
+  // Live preview: shortly after typing stops, ask the server to compose the new words (nothing is saved).
+  useEffect(() => {
+    if (!open || !hook.trim()) return;
+    const timer = setTimeout(async () => {
+      setPreviewing(true);
+      try {
+        const res = await fetch("/api/generate/recompose-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ generationId: row.id, label, hook, cta }),
+        });
+        const json: { image?: string; notes?: string[]; contrastPass?: boolean; error?: string } = await res.json();
+        if (res.ok && json.image) setPreview({ image: json.image, warning: json.contrastPass === false ? json.notes?.[0] ?? "Some letters sit on a busy part of the picture." : null });
+      } catch {
+        /* the preview is a convenience; Apply still works */
+      } finally {
+        setPreviewing(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [open, label, hook, cta, row.id]);
 
   const apply = async () => {
     setBusy(true);
@@ -86,7 +110,14 @@ function EditText({ row, onEdited }: { row: ResultRow; onEdited: (id: string, ro
           Cancel
         </button>
       </div>
-      <p className="text-xs text-muted">Same background, new words. No AI call, no cost.</p>
+      {preview && (
+        <div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview.image} alt="Preview" className="w-full rounded-lg border border-border" />
+          {preview.warning && <p className="mt-1 text-xs text-danger">⚠ {preview.warning}</p>}
+        </div>
+      )}
+      <p className="text-xs text-muted">{previewing ? "Updating preview…" : "Preview shows the change before you apply it."} Same background, new words. No AI call, no cost.</p>
     </div>
   );
 }

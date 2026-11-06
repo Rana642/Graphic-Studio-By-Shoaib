@@ -24,6 +24,8 @@ const bodySchema = z.object({
   complexity: z.enum(COMPLEXITIES).optional(),
   // "Exact text": the AI draws a text-free background and the words are composed on top (lib/layered).
   exactText: z.boolean().optional(),
+  // Exact text only: draw the footer contact strip from the brand's phone / email / website.
+  contactStrip: z.boolean().optional(),
   // Vision quality gate (lib/quality-gate.ts) — on unless explicitly false.
   qualityCheck: z.boolean().optional(),
 });
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { brandId, offer, provider, tier, placementIds, delivery, complexity, qualityCheck, exactText } = parsed.data;
+    const { brandId, offer, provider, tier, placementIds, delivery, complexity, qualityCheck, exactText, contactStrip } = parsed.data;
 
     const brand = await getBrand(brandId);
     if (!brand) return NextResponse.json({ error: "Brand not found." }, { status: 404 });
@@ -75,6 +77,7 @@ export async function POST(request: Request) {
         tier: tier as Tier,
         placements,
         complexity,
+        contactStrip,
       });
       return NextResponse.json({ batchId, copy, results });
     }

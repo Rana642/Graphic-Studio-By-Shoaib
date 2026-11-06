@@ -25,7 +25,7 @@ export default async function GenerateBrandPage({
         brand's identity.
       </p>
       <div className="mt-8">
-        <GenerateForm brandId={id} />
+        <GenerateForm brandId={id} hasContact={Boolean(brand.contact_phone || brand.contact_email || brand.website_url)} />
       </div>
     </div>
   );

@@ -28,6 +28,7 @@ Args:
   - cta (string, optional): call-to-action button text.
   - brandId (string, UUID, optional): takes the brand's colours, font (Archivo or Inter are bundled; anything else falls back, with a note) and logo. Without it, give primaryColor / accentColor and logoPath.
   - primaryColor, accentColor (strings "#rrggbb", optional): CTA button colour and badge colour when no brandId is given.
+  - phone, email, website (strings, optional): when any is given, a thin footer contact strip is drawn (edge to edge, brand colour, outline icons) and the layout keeps clear of it. Copy them from the brand's official website, never from an old creative.
   - logoPath (string, optional): a logo file (png/jpg/svg) to use instead of the brand's. Pick the light-on-dark or dark-on-light variant that suits the background.
   - placementId (string, optional): a placement id from studio_list_placements; the background is cropped to fill that size. Without it the background's own size is used.
   - preset ("auto" | "left" | "center" | "bottom", default "auto"): auto tries all three and keeps the one whose text reads best on this background.
@@ -41,6 +42,9 @@ Returns the file paths and a report: preset used, headline size and lines, text 
         cta: z.string().max(60).optional().describe("CTA button text"),
         brandId: z.string().uuid().optional().describe("Brand to take colours, font and logo from"),
         primaryColor: z.string().regex(HEX).optional().describe("CTA colour, #rrggbb"),
+        phone: z.string().max(60).optional().describe("Phone for the footer contact strip"),
+        email: z.string().max(120).optional().describe("Email for the footer contact strip"),
+        website: z.string().max(120).optional().describe("Website for the footer contact strip"),
         accentColor: z.string().regex(HEX).optional().describe("Badge colour, #rrggbb"),
         logoPath: z.string().min(1).optional().describe("Local logo file (png/jpg/svg)"),
         placementId: z.string().optional().describe("Placement id from studio_list_placements"),
@@ -57,6 +61,9 @@ Returns the file paths and a report: preset used, headline size and lines, text 
       brandId?: string;
       primaryColor?: string;
       accentColor?: string;
+      phone?: string;
+      email?: string;
+      website?: string;
       logoPath?: string;
       placementId?: string;
       preset: Preset | "auto";
@@ -96,6 +103,7 @@ Returns the file paths and a report: preset used, headline size and lines, text 
           brand,
           logo,
           preset: p.preset,
+          contact: p.phone || p.email || p.website ? { phone: p.phone, email: p.email, website: p.website } : null,
         });
 
         const out = p.outPath ?? path.join(path.dirname(p.backgroundPath), `${path.basename(p.backgroundPath, path.extname(p.backgroundPath))}_layered.png`);
@@ -126,6 +134,9 @@ Args:
   - copyLabel / copyHook / copyCta (strings): the exact badge text, headline (max two lines) and button text.
   - provider ("nano-banana" | "gpt-image" | "flux"), tier ("draft" | "standard" | "premium"), placementIds (1-6 from studio_list_placements).
   - complexity ("low" | "medium" | "high", optional): GPT Image 2.6 only.
+  - contactStrip (boolean, optional): add the thin footer strip with the brand's saved phone, email and website.
+
+Sizes of a similar shape share ONE background (e.g. Story + Feed), so asking for several sizes costs less than one image each; only the first row of a group carries the cost.
 
 Needs the "Exact text" SQL from supabase-schema.sql to have been run. Returns, per placement, the image URL (the finished design) and the row id (needed for studio_recompose_text).`,
       inputSchema: {
@@ -138,10 +149,11 @@ Needs the "Exact text" SQL from supabase-schema.sql to have been run. Returns, p
         tier: z.enum(["draft", "standard", "premium"]),
         placementIds: z.array(z.string()).min(1).max(6),
         complexity: z.enum(COMPLEXITIES).optional(),
+        contactStrip: z.boolean().optional().describe("Draw the footer contact strip from the brand's phone, email and website"),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    async (p: { brandId: string; offer: string; copyLabel: string; copyHook: string; copyCta: string; provider: Provider; tier: "draft" | "standard" | "premium"; placementIds: string[]; complexity?: Complexity }) => {
+    async (p: { brandId: string; offer: string; copyLabel: string; copyHook: string; copyCta: string; provider: Provider; tier: "draft" | "standard" | "premium"; placementIds: string[]; complexity?: Complexity; contactStrip?: boolean }) => {
       const fail = (text: string) => ({ content: [{ type: "text" as const, text: `Error: ${text}` }], isError: true });
       try {
         const placements = p.placementIds.map(getPlacement).filter((x) => x !== undefined);
@@ -154,6 +166,7 @@ Needs the "Exact text" SQL from supabase-schema.sql to have been run. Returns, p
           tier: p.tier,
           placements,
           complexity: p.complexity,
+          contactStrip: p.contactStrip,
         });
         const lines = results.map((r) => (r.status === "complete" ? `- ✅ **${r.placement}** — ${r.image_url} (row ${r.id}, est. $${r.est_cost_usd})` : `- ❌ **${r.placement}** — ${r.error_message}`));
         return {

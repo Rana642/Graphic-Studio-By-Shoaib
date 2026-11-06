@@ -17,6 +17,8 @@ export type LayoutZones = {
   height: number;
   align: "left" | "center";
   margin: number;
+  /** Pixels kept free along the bottom edge (the contact strip). */
+  footer: number;
   gap: number;
   logo: Box;
   label: Box;
@@ -26,7 +28,7 @@ export type LayoutZones = {
 
 const round = (n: number) => Math.round(n);
 
-export function layoutFor(width: number, height: number, preset: Preset): LayoutZones {
+export function layoutFor(width: number, height: number, preset: Preset, footer = 0): LayoutZones {
   const short = Math.min(width, height);
   const margin = round(short * 0.07);
   const wide = width / height > 1.7;
@@ -51,11 +53,11 @@ export function layoutFor(width: number, height: number, preset: Preset): Layout
   const label: Box = { x: colX, y: hook.y - gap - labelH, w: colW, h: labelH };
   let cta: Box = { x: colX, y: hook.y + hook.h + gap, w: colW, h: ctaH };
   // Keep the CTA above the bottom margin; if it would spill, pull the whole block up.
-  const overflow = cta.y + cta.h - (height - margin);
+  const overflow = cta.y + cta.h - (height - margin - footer);
   if (overflow > 0) {
     hook.y -= overflow;
     label.y -= overflow;
     cta = { ...cta, y: cta.y - overflow };
   }
-  return { preset, width, height, align, margin, gap, logo, label, hook, cta };
+  return { preset, width, height, align, margin, footer, gap, logo, label, hook, cta };
 }

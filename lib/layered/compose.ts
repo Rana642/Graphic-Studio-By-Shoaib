@@ -27,6 +27,8 @@ const MAX_HARD_SHARE = 0.01;
 
 export type BrandStyle = { name: string; primary_hex: string; accent_hex?: string | null; font_family?: string | null };
 export type ComposeContent = { label?: string; hook: string; cta?: string };
+/** Contact details for the footer strip, copied from the brand's official website. */
+export type ContactInfo = { phone?: string | null; email?: string | null; website?: string | null };
 
 type Face = { family: string; weight: number };
 
@@ -181,10 +183,66 @@ function glyphLuminance(raw: Buffer, width: number, height: number, mask: Buffer
 
 const onFill = (fillHex: string) => (ratio(hexLum(INK), hexLum(fillHex)) >= ratio(1, hexLum(fillHex)) ? INK : WHITE);
 
+// --- contact strip -----------------------------------------------------------
+
+const ICON_PATHS: Record<"phone" | "email" | "website", string> = {
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  website: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
+};
+
+const cleanSite = (url: string) => url.trim().replace(/^https?:\/\//i, "").replace(/\/$/, "");
+
+type StripPlan = { svg: string; top: number; height: number };
+
+/**
+ * The footer contact strip, in the fixed house style: thin, edge to edge,
+ * lifted a little off the bottom edge with a soft shadow, plain outline icons
+ * and the details in up to three evenly spaced columns, nothing else inside.
+ * Colours come from the brand; the text colour is chosen against the strip.
+ */
+function contactStrip(width: number, height: number, brand: BrandStyle, contact: ContactInfo | null | undefined, body: Face, measure: Measure): StripPlan | null {
+  const items = (
+    [
+      ["phone", contact?.phone?.trim()],
+      ["email", contact?.email?.trim()],
+      ["website", contact?.website ? cleanSite(contact.website) : ""],
+    ] as const
+  ).filter((i): i is readonly ["phone" | "email" | "website", string] => Boolean(i[1]));
+  if (items.length === 0) return null;
+
+  const scale = width / 1080;
+  const h = Math.max(44, Math.round(64 * scale));
+  const top = height - Math.round(40 * scale) - h;
+  const fill = brand.primary_hex;
+  const ink = onFill(fill);
+  const colW = width / items.length;
+  const iconSize = Math.round(h * 0.42);
+  const gap = Math.round(h * 0.2);
+
+  const parts: string[] = [
+    `<defs><filter id="strip-shadow" x="-5%" y="-40%" width="110%" height="190%"><feDropShadow dx="0" dy="${Math.round(h * 0.06)}" stdDeviation="${Math.round(h * 0.1)}" flood-color="#000000" flood-opacity="0.25"/></filter></defs>`,
+    `<rect x="0" y="${top}" width="${width}" height="${h}" fill="${fill}" filter="url(#strip-shadow)"/>`,
+  ];
+  items.forEach(([kind, text], i) => {
+    let size = Math.round(h * 0.34);
+    const room = colW - h * 0.8 - iconSize - gap;
+    while (size > Math.round(h * 0.2) && measure(text, body, size) > room) size -= 1;
+    const textW = measure(text, body, size);
+    const x0 = i * colW + (colW - (iconSize + gap + textW)) / 2;
+    parts.push(
+      `<g transform="translate(${x0} ${top + (h - iconSize) / 2}) scale(${iconSize / 24})" fill="none" stroke="${ink}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[kind]}</g>`,
+      `<text x="${x0 + iconSize + gap}" y="${top + h / 2 + size * 0.35}" font-family="${body.family}" font-weight="${body.weight}" font-size="${size}" fill="${ink}">${esc(text)}</text>`
+    );
+    if (i > 0) parts.push(`<line x1="${i * colW}" y1="${top + h * 0.25}" x2="${i * colW}" y2="${top + h * 0.75}" stroke="${ink}" stroke-opacity="0.3" stroke-width="1.5"/>`);
+  });
+  return { svg: parts.join(""), top, height: h };
+}
+
 // --- planning and rendering --------------------------------------------------
 
-function plan(preset: Preset, canvas: { width: number; height: number }, raw: Buffer, content: ComposeContent, headingFace: Face, urdu: boolean, measure: Measure) {
-  const base = layoutFor(canvas.width, canvas.height, preset);
+function plan(preset: Preset, canvas: { width: number; height: number }, raw: Buffer, content: ComposeContent, headingFace: Face, urdu: boolean, measure: Measure, footer: number) {
+  const base = layoutFor(canvas.width, canvas.height, preset, footer);
   const short = Math.min(canvas.width, canvas.height);
   const fit = fitHeadline(content.hook, headingFace, base.hook, short, measure);
   const widest = Math.max(...fit.lines.map((l) => measure(l, headingFace, fit.size)));
@@ -198,7 +256,7 @@ function plan(preset: Preset, canvas: { width: number; height: number }, raw: Bu
   const top = hasLabel ? labelY : base.hook.y;
   const bottom = hasCta ? ctaY + base.cta.h : base.hook.y + textH;
   const belowLogo = base.logo.y + base.logo.h + base.gap;
-  let shift = preset === "bottom" ? base.height - base.margin - bottom : 0;
+  let shift = preset === "bottom" ? base.height - base.margin - base.footer - bottom : 0;
   shift = Math.max(shift, belowLogo - (top + shift) + shift); // never start above the logo's bottom edge
 
   const layout: LayoutZones = {
@@ -231,18 +289,25 @@ export async function composeLayered(input: {
   /** The logo image to place (png/jpg/svg). Pick the variant that suits the background. */
   logo?: Buffer | null;
   preset?: Preset | "auto";
+  /** When given (and not empty), the footer contact strip is drawn and the layout keeps clear of it. */
+  contact?: ContactInfo | null;
+  /** Where to anchor the crop when the background is a different shape (sharp position, e.g. "right"). */
+  bgPosition?: string;
 }): Promise<ComposeResult> {
   const { width, height, content, brand } = input;
   const urdu = hasUrdu(content.hook);
   const { heading, body, notes } = faces(brand, urdu);
   const measure = makeMeasurer();
 
-  const bg = sharp(input.background).resize(width, height, { fit: "cover" }).removeAlpha();
+  const bg = sharp(input.background).resize(width, height, { fit: "cover", position: input.bgPosition ?? "centre" }).removeAlpha();
   const [bgPng, rawInfo] = await Promise.all([bg.clone().png().toBuffer(), bg.clone().raw().toBuffer({ resolveWithObject: true })]);
   const raw = rawInfo.data;
 
+  const strip = contactStrip(width, height, brand, input.contact, body, measure);
+  const footer = strip ? height - strip.top + Math.round(Math.min(width, height) * 0.03) : 0;
+
   const candidates = input.preset && input.preset !== "auto" ? [input.preset] : [...PRESETS];
-  const plans = candidates.map((p) => plan(p, { width, height }, raw, content, heading, urdu, measure));
+  const plans = candidates.map((p) => plan(p, { width, height }, raw, content, heading, urdu, measure, footer));
   const better = (b: (typeof plans)[number], a: (typeof plans)[number]) => b.share < a.share - 0.002 || (Math.abs(b.share - a.share) <= 0.002 && b.contrast > a.contrast + 0.05);
   const best = plans.reduce((a, b) => (better(b, a) ? b : a));
   const { layout, fit, textBox, color, contrast, share } = best;
@@ -282,6 +347,8 @@ export async function composeLayered(input: {
     );
   }
 
+  if (strip) shapes.push(strip.svg);
+
   const overlay = new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${shapes.join("")}</svg>`, {
     font: { loadSystemFonts: false, fontFiles: FONT_FILES },
     background: "rgba(0,0,0,0)",
@@ -311,6 +378,7 @@ export async function composeLayered(input: {
     headline: { size: fit.size, lines: fit.lines, color, box: textBox },
     report: { contrastPass: contrast >= HEADLINE_MIN_CONTRAST && share <= MAX_HARD_SHARE, contrast: Number(contrast.toFixed(2)), hardToReadShare: Number(share.toFixed(3)), notes },
     logo: logoBox,
+    contact: strip ? input.contact : null,
     short,
   };
 

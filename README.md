@@ -96,8 +96,17 @@ separate one.
       "Edit text (free)" on a result changes the words with no AI call
       (`/api/generate/recompose`). MCP: `studio_generate_exact_text`,
       `studio_recompose_text`. Needs the "Exact text" SQL at the end of
-      `supabase-schema.sql`. Not yet (phase 3): one background for several
-      sizes, contact strip, a live as-you-type preview.
+      `supabase-schema.sql`.
+- [x] Exact text, phase 3 (2026-11-07) — sizes of a similar shape (within 1.5x)
+      share ONE AI background (`lib/layered/families.ts`; Story + Feed from one,
+      the cost sits on the group's first row); optional footer **contact
+      strip** (phone / email / website from the brand record, edge to edge,
+      brand colour, outline icons; layout keeps clear of it; the "Contact
+      strip" tick shows only when the brand has details, off by default; WhatsApp
+      is not included, the brand has no field for it); and a debounced **live
+      preview** inside "Edit text" (`/api/generate/recompose-preview`, nothing
+      saved). MCP: `studio_generate_exact_text` takes `contactStrip`,
+      `studio_layered_compose` takes `phone` / `email` / `website`. No new SQL.
 - [x] Video Studio checks + formats (2026-11-07, ideas taken from reading
       OpenMontage / editonny, nothing installed) — every render is now
       verified with ffprobe (video + audio present, audio length matches the

@@ -15,7 +15,7 @@ type ApiResponse = {
 
 const REGULAR_TRACK_IDS = ["ig_feed", "ig_story", "meta_ad"];
 
-export default function GenerateForm({ brandId }: { brandId: string }) {
+export default function GenerateForm({ brandId, hasContact = false }: { brandId: string; hasContact?: boolean }) {
   const [offer, setOffer] = useState("");
   const [provider, setProvider] = useState<Provider>("nano-banana");
   const [tier, setTier] = useState<"draft" | "standard" | "premium">("standard");
@@ -28,6 +28,8 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
   const [qualityCheck, setQualityCheck] = useState(true);
   // Exact text: the AI draws a text-free background, the words are composed on top (always "Now" delivery).
   const [exactText, setExactText] = useState(true);
+  // The footer strip with the brand's phone, email and website (Exact text only; off by default).
+  const [contactStrip, setContactStrip] = useState(false);
   const [placementIds, setPlacementIds] = useState<string[]>(REGULAR_TRACK_IDS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId, offer, provider, tier, placementIds, delivery: exactText ? "instant" : delivery, qualityCheck, exactText, ...(complexity ? { complexity } : {}) }),
+        body: JSON.stringify({ brandId, offer, provider, tier, placementIds, delivery: exactText ? "instant" : delivery, qualityCheck, exactText, ...(exactText && contactStrip ? { contactStrip: true } : {}), ...(complexity ? { complexity } : {}) }),
       });
       const json: ApiResponse = await res.json();
       if (!res.ok) {
@@ -142,6 +144,16 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
             </span>
           </span>
         </label>
+
+        {exactText && hasContact && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={contactStrip} onChange={(e) => setContactStrip(e.target.checked)} />
+            <span>
+              <span className="font-medium">Contact strip</span>
+              <span className="block text-xs text-muted">A thin footer with the brand&apos;s phone, email and website, as saved on the brand. Check them against the official website first.</span>
+            </span>
+          </label>
+        )}
 
         <DeliveryChoice value={delivery} onChange={setDelivery} batchAvailable={providerHasBatch(provider) && !exactText} />
 

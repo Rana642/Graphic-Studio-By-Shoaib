@@ -7,14 +7,16 @@ import { loadReferenceImagesAsBase64 } from "../references";
 import { getGeneration, insertGeneration, uploadGeneratedImage, type Generation } from "../generations";
 import { db } from "../supabase/db";
 import type { Placement } from "../placements";
-import { composeLayered, type BrandStyle, type ComposeContent } from "./compose";
+import { composeLayered, type BrandStyle, type ComposeContent, type ContactInfo } from "./compose";
+import { groupPlacements } from "./families";
 import { PRESETS, type Preset } from "./layouts";
 
 /**
  * Exact-text designs, end to end: the AI draws a text-free background (the
- * only paid step), then composeLayered puts the words, badge, CTA and logo on
- * top. The background and the layout recipe are saved on the row, so a text
- * change later (recomposeLayered) is free and instant.
+ * only paid step), then composeLayered puts the words, badge, CTA, logo and
+ * optional contact strip on top. Sizes of a similar shape share one background
+ * (lib/layered/families.ts). The background and the layout recipe are saved on
+ * every row, so a text change later (recomposeLayered) is free and instant.
  */
 
 const SQL_HINT = 'Run the "Exact text" SQL at the end of supabase-schema.sql (track "layered" + background_url + layout_json) in the Supabase SQL Editor first.';
@@ -25,6 +27,12 @@ const EMPTY_AREA =
 type Copy = { label: string; hook: string; cta: string };
 
 const styleOf = (brand: Brand): BrandStyle => ({ name: brand.name, primary_hex: brand.primary_hex, accent_hex: brand.accent_hex, font_family: brand.font_family });
+
+/** Phone, email and website as the brand record holds them (copied there from the official website). */
+export const contactOf = (brand: Brand): ContactInfo | null => {
+  const c = { phone: brand.contact_phone, email: brand.contact_email, website: brand.website_url };
+  return c.phone || c.email || c.website ? c : null;
+};
 
 async function fetchBytes(url: string | null | undefined): Promise<Buffer | null> {
   if (!url) return null;
@@ -64,70 +72,83 @@ export async function runExactTextGeneration(input: {
   placements: Placement[];
   complexity?: Complexity;
   preset?: Preset | "auto";
+  /** Draw the footer contact strip from the brand's phone / email / website. */
+  contactStrip?: boolean;
 }): Promise<{ batchId: string; results: Generation[] }> {
   const brand = await getBrand(input.brandId);
   if (!brand) throw new Error("Brand not found.");
   const colors = [brand.primary_hex, brand.secondary_hex, brand.accent_hex].filter((c): c is string => Boolean(c));
   const [styleRefs, logo] = await Promise.all([loadReferenceImagesAsBase64(input.brandId), fetchBytes(brand.logo_url)]);
   const prompt = backgroundPrompt(brand, colors, input.copy, input.offer, styleRefs.length);
+  const contact = input.contactStrip ? contactOf(brand) : null;
   const batchId = crypto.randomUUID();
 
-  const results = await Promise.all(
-    input.placements.map(async (placement): Promise<Generation> => {
+  const fail = (placement: Placement, err: unknown): Promise<Generation> => {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    // A missing enum value / column is a setup problem, not a generation failure: say how to fix it.
+    if (/layered|background_url|layout_json/.test(message)) rethrowWithHint(err);
+    return insertGeneration({ brand_id: input.brandId, batch_id: batchId, track: "layered", placement: placement.id, prompt_used: prompt, status: "failed", error_message: message });
+  };
+
+  // One background per group of similar shapes; every size in the group is composed from it.
+  const groups = await Promise.all(
+    groupPlacements(input.placements).map(async (group): Promise<Generation[]> => {
+      let bg: Awaited<ReturnType<typeof generateImage>>;
+      let backgroundUrl: string;
       try {
-        const bg = await generateImage(input.provider, {
+        bg = await generateImage(input.provider, {
           prompt,
           tier: input.tier,
-          placement,
+          placement: group.master,
           referenceImages: styleRefs,
           complexity: input.provider === "gpt-image" ? input.complexity : undefined,
         });
-        const composed = await composeLayered({
-          background: Buffer.from(bg.imageBase64, "base64"),
-          width: placement.width,
-          height: placement.height,
-          content: input.copy,
-          brand: styleOf(brand),
-          logo,
-          preset: input.preset ?? "auto",
-        });
-        const [backgroundUrl, imageUrl] = await Promise.all([
-          uploadGeneratedImage(input.brandId, `${placement.id}-bg`, bg.imageBase64, bg.mimeType),
-          uploadGeneratedImage(input.brandId, placement.id, composed.png.toString("base64"), "image/png"),
-        ]);
-        return await insertGeneration({
-          brand_id: input.brandId,
-          batch_id: batchId,
-          track: "layered",
-          placement: placement.id,
-          model_used: bg.modelUsed,
-          prompt_used: prompt,
-          copy_label: input.copy.label,
-          copy_hook: input.copy.hook,
-          copy_cta: input.copy.cta,
-          image_url: imageUrl,
-          est_cost_usd: bg.estCostUsd,
-          status: "complete",
-          background_url: backgroundUrl,
-          layout_json: composed.layoutJson,
-        });
+        backgroundUrl = await uploadGeneratedImage(input.brandId, `${group.master.id}-bg`, bg.imageBase64, bg.mimeType);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        // A missing enum value / column is a setup problem, not a generation failure: say how to fix it.
-        if (/layered|background_url|layout_json/.test(message)) rethrowWithHint(err);
-        return insertGeneration({
-          brand_id: input.brandId,
-          batch_id: batchId,
-          track: "layered",
-          placement: placement.id,
-          prompt_used: prompt,
-          status: "failed",
-          error_message: message,
-        });
+        return Promise.all(group.members.map((p) => fail(p, err)));
       }
+      const background = Buffer.from(bg.imageBase64, "base64");
+
+      return Promise.all(
+        group.members.map(async (placement): Promise<Generation> => {
+          try {
+            const composed = await composeLayered({
+              background,
+              width: placement.width,
+              height: placement.height,
+              content: input.copy,
+              brand: styleOf(brand),
+              logo,
+              preset: input.preset ?? "auto",
+              contact,
+              bgPosition: "right", // the hero sits upper right, the empty space left and low
+            });
+            const imageUrl = await uploadGeneratedImage(input.brandId, placement.id, composed.png.toString("base64"), "image/png");
+            return await insertGeneration({
+              brand_id: input.brandId,
+              batch_id: batchId,
+              track: "layered",
+              placement: placement.id,
+              model_used: bg.modelUsed,
+              prompt_used: prompt,
+              copy_label: input.copy.label,
+              copy_hook: input.copy.hook,
+              copy_cta: input.copy.cta,
+              image_url: imageUrl,
+              // The background is paid once per group: only its first row carries the cost.
+              est_cost_usd: placement.id === group.master.id ? bg.estCostUsd : 0,
+              status: "complete",
+              background_url: backgroundUrl,
+              layout_json: composed.layoutJson,
+            });
+          } catch (err) {
+            return fail(placement, err);
+          }
+        })
+      );
     })
   );
-  return { batchId, results };
+  return { batchId, results: groups.flat() };
 }
 
 type SavedLayout = {
@@ -135,14 +156,11 @@ type SavedLayout = {
   preset?: string;
   brand?: { name?: string; primary?: string; accent?: string; font_family?: string | null };
   content?: ComposeContent;
+  contact?: ContactInfo | null;
 };
 
-/**
- * Changes the words on a saved exact-text design: same background, same
- * layout, new text. Free (no AI call). The enhanced (upscaled) copy, if any,
- * is cleared because it no longer matches.
- */
-export async function recomposeLayered(input: { generationId: string; label?: string; hook?: string; cta?: string }): Promise<Generation> {
+/** Re-draws a saved exact-text design with new words (shared by the real edit and the live preview). */
+async function composeFromSaved(input: { generationId: string; label?: string; hook?: string; cta?: string }) {
   const row = await getGeneration(input.generationId);
   if (!row || row.track !== "layered" || !row.background_url || !row.layout_json) throw new Error("That image is not an exact-text design, so its text can't be edited.");
   const saved = row.layout_json as SavedLayout;
@@ -165,9 +183,20 @@ export async function recomposeLayered(input: { generationId: string; label?: st
     : { name: saved.brand?.name ?? "", primary_hex: saved.brand?.primary ?? "#0f0f14", accent_hex: saved.brand?.accent ?? null, font_family: saved.brand?.font_family ?? null };
 
   const preset = (PRESETS as readonly string[]).includes(saved.preset ?? "") ? (saved.preset as Preset) : "auto";
+  const args = { background, width, height, content, brand: style, logo, contact: saved.contact ?? null, bgPosition: "right" };
   // Keep the saved layout, unless the new words land on something busy: then let the engine pick the best one.
-  let composed = await composeLayered({ background, width, height, content, brand: style, logo, preset });
-  if (!composed.report.contrastPass) composed = await composeLayered({ background, width, height, content, brand: style, logo, preset: "auto" });
+  let composed = await composeLayered({ ...args, preset });
+  if (!composed.report.contrastPass) composed = await composeLayered({ ...args, preset: "auto" });
+  return { row, content, composed };
+}
+
+/**
+ * Changes the words on a saved exact-text design: same background, same
+ * layout, new text. Free (no AI call). The enhanced (upscaled) copy, if any,
+ * is cleared because it no longer matches.
+ */
+export async function recomposeLayered(input: { generationId: string; label?: string; hook?: string; cta?: string }): Promise<Generation> {
+  const { row, content, composed } = await composeFromSaved(input);
   const imageUrl = await uploadGeneratedImage(row.brand_id, `${row.placement}-edit`, composed.png.toString("base64"), "image/png");
 
   const { data, error } = await db
@@ -185,4 +214,10 @@ export async function recomposeLayered(input: { generationId: string; label?: st
     .single();
   if (error) throw new Error(error.message);
   return data as Generation;
+}
+
+/** The live preview: the same compose, but nothing is uploaded or saved. Returns a PNG as base64. */
+export async function previewRecompose(input: { generationId: string; label?: string; hook?: string; cta?: string }) {
+  const { composed } = await composeFromSaved(input);
+  return { imageBase64: composed.png.toString("base64"), report: composed.report };
 }
