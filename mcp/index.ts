@@ -39,6 +39,7 @@ const { registerAssetLockedTools } = await import("./tools/asset-locked.js");
 const { registerVideoTools } = await import("./tools/videos.js");
 const { registerPhotoshootTools } = await import("./tools/photoshoot.js");
 const { registerMarkupEditTools } = await import("./tools/markup-edit.js");
+const { registerLayeredTools } = await import("./tools/layered.js");
 
 const server = new McpServer({
   name: "graphics-studio-mcp-server",
@@ -52,6 +53,7 @@ registerAssetLockedTools(server);
 registerVideoTools(server);
 registerPhotoshootTools(server);
 registerMarkupEditTools(server);
+registerLayeredTools(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

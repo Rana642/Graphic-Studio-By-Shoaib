@@ -81,6 +81,16 @@ separate one.
       Result is saved under track `markup_edit`, which needs the "Markup edit"
       SQL at the end of `supabase-schema.sql`. MCP: `studio_markup_edit`
       (`regions` the tool draws, or your own transparent PNG as `markupPath`).
+- [x] Exact text, phase 1 (2026-11-07) — `lib/layered/`: the AI draws only a
+      text-free background; the words, badge, CTA and logo go on top in real
+      fonts (resvg + bundled fonts), so spelling is always ours and a text
+      change is free. Three layouts (left / center / bottom; `auto` keeps the
+      one that reads best), headline fitted to at most two lines at a readable
+      size, text colour chosen from the real pixels behind it (WCAG contrast
+      reported). MCP: `studio_layered_compose` (writes the PNG plus a
+      `.layout.json`). Not yet (phase 2/3): the "Exact text" tick on the
+      Generate form, live preview, saving to history, one background for
+      several sizes, contact strip.
 - [x] Video Studio checks + formats (2026-11-07, ideas taken from reading
       OpenMontage / editonny, nothing installed) — every render is now
       verified with ffprobe (video + audio present, audio length matches the
