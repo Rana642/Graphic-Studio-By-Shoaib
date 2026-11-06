@@ -10,9 +10,19 @@ import {
   listVideos,
   probeSeconds,
   renderVideo,
+  reframeVideo,
   startVideo,
   videoUseDir,
+  VIDEO_PROFILES,
+  type RenderCheck,
+  type VideoProfile,
 } from "../../lib/videos.js";
+
+/** One line per check, failed ones first, for the tool's text reply. */
+function checksText(checks: RenderCheck[]): string {
+  const failed = checks.filter((c) => !c.ok);
+  return `Checks: ${failed.length ? `${failed.length} FAILED` : "all passed"}\n${[...failed, ...checks.filter((c) => c.ok)].map((c) => `${c.ok ? "✓" : "✗"} ${c.name} — ${c.detail}`).join("\n")}`;
+}
 
 function formatError(error: unknown): string {
   return `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -132,10 +142,44 @@ ${SKILL_NOTE}`,
           content: [
             {
               type: "text",
-              text: `${p.preview ? "Preview" : "Final"} rendered: ${res.output} (${res.seconds.toFixed(1)}s)${res.url ? `\nUploaded: ${res.url}` : p.preview ? "" : "\nNot uploaded (over the size limit) — the file stays local."}`,
+              text: `${p.preview ? "Preview" : "Final"} rendered: ${res.output} (${res.seconds.toFixed(1)}s)${res.url ? `\nUploaded: ${res.url}` : p.preview ? "" : "\nNot uploaded (over the size limit) — the file stays local."}\n${checksText(res.checks)}\nManifest: ${res.manifestPath}`,
             },
           ],
-          structuredContent: { output: res.output, seconds: res.seconds, url: res.url },
+          structuredContent: { output: res.output, seconds: res.seconds, url: res.url, checks: res.checks, manifest: res.manifestPath },
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: formatError(error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "studio_video_reframe",
+    {
+      title: "Video Studio — Re-frame a Rendered Video for Another Platform",
+      description: `Makes another-shaped copy of a rendered video: a centred crop to the target shape, then a scale to the platform size. The picture is never stretched, but whatever doesn't fit is cut off, so it suits videos with the subject near the middle. Audio is copied unchanged. Free (local ffmpeg).
+
+Profiles: ${Object.entries(VIDEO_PROFILES).map(([k, v]) => `"${k}" = ${v.width}x${v.height}, ${v.label}`).join("; ")}.
+
+Args:
+  - videoId (string, UUID): from studio_video_start (the video must have been rendered).
+  - profile ("vertical" | "portrait" | "square" | "landscape").
+  - sourceFile (string, optional): a specific rendered file; default is the video's final render (or its preview).
+
+Returns the new file's path, plus the same checks and a manifest as studio_video_render.`,
+      inputSchema: {
+        videoId: z.string().uuid(),
+        profile: z.enum(Object.keys(VIDEO_PROFILES) as [VideoProfile, ...VideoProfile[]]),
+        sourceFile: z.string().min(1).optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async (p: { videoId: string; profile: VideoProfile; sourceFile?: string }) => {
+      try {
+        const res = await reframeVideo(p);
+        return {
+          content: [{ type: "text", text: `Re-framed (${res.profile}): ${res.output} (${res.seconds.toFixed(1)}s)\n${checksText(res.checks)}\nManifest: ${res.manifestPath}` }],
+          structuredContent: { output: res.output, profile: res.profile, seconds: res.seconds, checks: res.checks, manifest: res.manifestPath },
         };
       } catch (error) {
         return { content: [{ type: "text", text: formatError(error) }], isError: true };

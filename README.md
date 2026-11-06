@@ -81,6 +81,14 @@ separate one.
       Result is saved under track `markup_edit`, which needs the "Markup edit"
       SQL at the end of `supabase-schema.sql`. MCP: `studio_markup_edit`
       (`regions` the tool draws, or your own transparent PNG as `markupPath`).
+- [x] Video Studio checks + formats (2026-11-07, ideas taken from reading
+      OpenMontage / editonny, nothing installed) — every render is now
+      verified with ffprobe (video + audio present, audio length matches the
+      picture, even size, sane length) and gets a `manifest.json` next to it;
+      `studio_video_render` reports the checks. New `studio_video_reframe`
+      makes a centred-crop copy as `vertical` 1080x1920, `portrait` 1080x1350,
+      `square` 1080x1080 or `landscape` 1920x1080 (own manifest). Needs ffmpeg
+      on the PC; not yet run on this one.
 - [ ] Phase 4 — Rare identity assets (mood board, business card, letterhead)
 - [ ] Deferred — auto-posting to Meta/LinkedIn
 

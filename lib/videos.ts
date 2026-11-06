@@ -293,7 +293,14 @@ export async function renderVideo(input: { videoId: string; preview?: boolean; s
     await run(python(), args, { cwd: video.source_dir, env: helperEnv(brand ? { VIDEO_USE_SUB_FORCE_STYLE: brandSubtitleStyle(brand) } : {}) });
     let finalFile = out;
     if (!input.preview && brand && (input.endCardSeconds ?? 2.5) > 0) finalFile = await appendEndCard(out, brand, video.edit_dir, input.endCardSeconds ?? 2.5);
-    if (input.preview) return { video, output: finalFile, seconds: await probeSeconds(finalFile), url: null as string | null };
+    // A render that "succeeded" can still be silent or truncated — check the file itself.
+    const verified = await verifyRender(finalFile);
+    const manifestPath = await writeManifest(video, finalFile, verified, {
+      preview: Boolean(input.preview),
+      subtitles: input.subtitles !== false,
+      endCardSeconds: input.preview ? 0 : input.endCardSeconds ?? 2.5,
+    });
+    if (input.preview) return { video, output: finalFile, seconds: await probeSeconds(finalFile), url: null as string | null, checks: verified.checks, manifestPath };
 
     const seconds = await probeSeconds(finalFile);
     const url = await uploadVideo(video.brand_id, finalFile);
@@ -304,10 +311,98 @@ export async function renderVideo(input: { videoId: string; preview?: boolean; s
       .select()
       .single();
     if (error) throw new Error(error.message);
-    return { video: data as VideoGeneration, output: finalFile, seconds, url };
+    return { video: data as VideoGeneration, output: finalFile, seconds, url, checks: verified.checks, manifestPath };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await db.from("video_generations").update({ status: "failed", error: message.slice(0, 2000) }).eq("id", video.id);
     throw error;
   }
+}
+
+/** Output sizes per platform (all 30 fps-friendly H.264 MP4s). */
+export const VIDEO_PROFILES = {
+  vertical: { width: 1080, height: 1920, label: "9:16 — Instagram Reels, YouTube Shorts, TikTok" },
+  portrait: { width: 1080, height: 1350, label: "4:5 — Instagram and Facebook feed" },
+  square: { width: 1080, height: 1080, label: "1:1 — Instagram feed" },
+  landscape: { width: 1920, height: 1080, label: "16:9 — YouTube, LinkedIn" },
+} as const;
+export type VideoProfile = keyof typeof VIDEO_PROFILES;
+
+export type RenderCheck = { name: string; ok: boolean; detail: string };
+
+type ProbeStream = { codec_type?: string; codec_name?: string; width?: number; height?: number; r_frame_rate?: string; duration?: string };
+
+/**
+ * Checks the rendered file itself (not the renderer's exit code): it has video
+ * and audio, the audio runs as long as the picture, the size is even and (when
+ * given) the expected one, and the length is sane. Never throws on a failed
+ * check — the caller reports them.
+ */
+export async function verifyRender(file: string, expect: { width?: number; height?: number } = {}) {
+  const raw = await run("ffprobe", ["-v", "quiet", "-print_format", "json", "-show_streams", "-show_format", file]);
+  const json = JSON.parse(raw.slice(raw.indexOf("{"))) as { streams?: ProbeStream[]; format?: { duration?: string; size?: string } };
+  const video = json.streams?.find((s) => s.codec_type === "video");
+  const audio = json.streams?.find((s) => s.codec_type === "audio");
+  const total = Number(json.format?.duration) || 0;
+  const vDur = Number(video?.duration) || total;
+  const aDur = Number(audio?.duration) || 0;
+  const [num, den] = (video?.r_frame_rate ?? "0/1").split("/").map(Number);
+  const fps = den ? (num ?? 0) / den : 0;
+  const w = video?.width ?? 0;
+  const h = video?.height ?? 0;
+
+  const checks: RenderCheck[] = [
+    { name: "video stream", ok: Boolean(video), detail: video ? `${video.codec_name} ${w}x${h} @ ${fps.toFixed(2)} fps` : "no video stream" },
+    { name: "audio stream", ok: Boolean(audio), detail: audio ? `${audio.codec_name}, ${aDur.toFixed(1)} s` : "no audio — the video is silent" },
+    { name: "audio matches picture", ok: !audio || Math.abs(aDur - vDur) <= 0.6, detail: audio ? `video ${vDur.toFixed(1)} s, audio ${aDur.toFixed(1)} s` : "no audio to compare" },
+    { name: "length", ok: total >= 1, detail: `${total.toFixed(1)} s` },
+    { name: "even size", ok: w % 2 === 0 && h % 2 === 0 && w > 0, detail: `${w}x${h}` },
+  ];
+  if (expect.width && expect.height) {
+    checks.push({ name: "expected size", ok: w === expect.width && h === expect.height, detail: `wanted ${expect.width}x${expect.height}, got ${w}x${h}` });
+  }
+  return { checks, info: { width: w, height: h, fps: Number(fps.toFixed(3)), seconds: Number(total.toFixed(2)), bytes: Number(json.format?.size) || 0, hasAudio: Boolean(audio) } };
+}
+
+/** Writes manifest.json (or a named one) next to the render: what was made, how, and what the checks found. */
+async function writeManifest(
+  video: VideoGeneration,
+  file: string,
+  verified: Awaited<ReturnType<typeof verifyRender>>,
+  settings: Record<string, unknown>,
+  name = "manifest.json"
+): Promise<string> {
+  const manifestPath = path.join(video.edit_dir, name);
+  await writeFile(
+    manifestPath,
+    JSON.stringify(
+      { videoId: video.id, title: video.title, brandId: video.brand_id, file, createdAt: new Date().toISOString(), settings, output: verified.info, checks: verified.checks, allChecksPassed: verified.checks.every((c) => c.ok) },
+      null,
+      2
+    )
+  );
+  return manifestPath;
+}
+
+/**
+ * Re-frames a rendered video for another platform: a centred crop to the
+ * target shape, then a scale to the profile size (the picture is never
+ * stretched; the sides or top/bottom that don't fit are cut off, so the subject
+ * should be near the middle). Audio is copied unchanged. Writes a sibling file
+ * `<name>_<profile>.mp4` and a manifest for it.
+ */
+export async function reframeVideo(input: { videoId: string; profile: VideoProfile; sourceFile?: string }) {
+  const video = await getVideo(input.videoId);
+  const candidates = [input.sourceFile, video.output_path ?? undefined, path.join(video.edit_dir, "final_branded.mp4"), path.join(video.edit_dir, "final.mp4"), path.join(video.edit_dir, "preview.mp4")];
+  const source = candidates.find((f): f is string => Boolean(f) && existsSync(f as string));
+  if (!source) throw new Error("No rendered video to re-frame yet — run studio_video_render first.");
+
+  const { width, height } = VIDEO_PROFILES[input.profile];
+  const out = path.join(path.dirname(source), `${path.basename(source, path.extname(source))}_${input.profile}.mp4`);
+  const filter = `crop='min(iw,ih*${width}/${height})':'min(ih,iw*${height}/${width})',scale=${width}:${height}:flags=lanczos,setsar=1`;
+  await run("ffmpeg", ["-y", "-i", source, "-vf", filter, "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out]);
+
+  const verified = await verifyRender(out, { width, height });
+  const manifestPath = await writeManifest(video, out, verified, { reframedFrom: source, profile: input.profile, method: "centred crop + scale" }, `manifest_${input.profile}.json`);
+  return { output: out, profile: input.profile, checks: verified.checks, manifestPath, seconds: verified.info.seconds };
 }
