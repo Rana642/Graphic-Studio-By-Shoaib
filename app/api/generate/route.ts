@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { PROVIDERS } from "@/lib/image-providers/types";
+import { COMPLEXITIES, PROVIDERS } from "@/lib/image-providers/types";
 import { getUser } from "@/lib/supabase/auth";
 import { getBrand } from "@/lib/brands";
 import { getPlacement } from "@/lib/placements";
@@ -19,6 +19,8 @@ const bodySchema = z.object({
   placementIds: z.array(z.string()).min(1).max(6),
   // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).
   delivery: z.enum(["instant", "batch"]).optional(),
+  // GPT Image 2.6 only; left out = OpenAI's default.
+  complexity: z.enum(COMPLEXITIES).optional(),
   // Vision quality gate (lib/quality-gate.ts) — on unless explicitly false.
   qualityCheck: z.boolean().optional(),
 });
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { brandId, offer, provider, tier, placementIds, delivery, qualityCheck } = parsed.data;
+    const { brandId, offer, provider, tier, placementIds, delivery, complexity, qualityCheck } = parsed.data;
 
     const brand = await getBrand(brandId);
     if (!brand) return NextResponse.json({ error: "Brand not found." }, { status: 404 });
@@ -79,6 +81,7 @@ export async function POST(request: Request) {
       referenceImages,
       copy,
       delivery,
+      complexity,
       contract,
       expectedText: expectedTextOf(contract),
       qualityCheck,

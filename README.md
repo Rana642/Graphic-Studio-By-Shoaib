@@ -68,6 +68,12 @@ separate one.
       on `/batches`, which checks the providers on every load (and every
       minute while something is queued); MCP: `studio_check_batches`. Needs
       the "Batch delivery" SQL at the end of `supabase-schema.sql`.
+- [x] GPT Image 2.6 (2026-11-07) — "Now" delivery uses `gpt-image-2.6-sunburst`
+      / `-flare`; Batch stays on 2.5 (2.6 has no Batch API). Complexity
+      (low / medium / high, GPT Image + "Now" only) on the three generate
+      forms and the MCP tools `studio_generate_graphics`,
+      `studio_generate_from_prompt`, `studio_generate_subject_edit`. Not yet:
+      Photoshoot, Asset-Locked, SVG / GIF output, markup-guided edits.
 - [ ] Phase 4 — Rare identity assets (mood board, business card, letterhead)
 - [ ] Deferred — auto-posting to Meta/LinkedIn
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PROVIDERS, type Provider } from "../../lib/image-providers/types.js";
+import { COMPLEXITIES, PROVIDERS, type Complexity, type Provider } from "../../lib/image-providers/types.js";
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -107,6 +107,14 @@ const QUALITY_SCHEMA = z
 const QUALITY_ARG_DOC = `  - qualityCheck (boolean, optional, default true): vision quality gate — each image is checked (exact text, logo/product fidelity, design rules) and a weak one is regenerated once with the reviewer's fix, keeping the better image. Each result then carries quality_score (0-100), quality_notes and quality_attempts. Batch images are scored but not regenerated.
 `;
 
+const COMPLEXITY_SCHEMA = z
+  .enum(COMPLEXITIES)
+  .optional()
+  .describe('GPT Image 2.6 only (provider "gpt-image", delivery "instant"): how much the model plans before drawing — "low" is fastest and keeps edits closest to the source, "high" plans most. Omit for the OpenAI default (high). No extra fee; ignored by other models and batch.');
+
+const COMPLEXITY_ARG_DOC = `  - complexity ("low" | "medium" | "high", optional): GPT Image 2.6 only (provider "gpt-image", delivery "instant") — how much the model plans before drawing. "low" is fastest and keeps edits closest to the source; omitted = OpenAI's default (high). No extra fee. Ignored by other models and by batch delivery.
+`;
+
 export function registerGenerationTools(server: McpServer): void {
   server.registerTool(
     "studio_list_placements",
@@ -154,7 +162,7 @@ Args:
   - tier ("draft" | "standard" | "premium", required): quality/cost tier — draft is cheapest for concepting, premium is the best-quality final export.
   - placementIds (string[], required, 1-6 items): placement ids from studio_list_placements, e.g. ["ig_feed", "ig_story"]. One image is generated per placement, in parallel, sharing the same batch.
   - delivery ("instant" | "batch", optional, default "instant"): "batch" sends the job through the provider's Batch API — same model and quality at 50% of the price, ready within 24 hours. Batch results come back with status "pending"; collect them later with studio_check_batches. Use batch whenever the images aren't needed right away.
-${QUALITY_ARG_DOC}
+${QUALITY_ARG_DOC}${COMPLEXITY_ARG_DOC}
 Returns (JSON):
 {
   "batchId": string,
@@ -184,6 +192,7 @@ Error Handling:
           .default("instant")
           .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
         qualityCheck: QUALITY_SCHEMA,
+        complexity: COMPLEXITY_SCHEMA,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -197,6 +206,7 @@ Error Handling:
       placementIds: string[];
       delivery: "instant" | "batch";
       qualityCheck: boolean;
+      complexity?: Complexity;
     }) => {
       try {
         const brand = await getBrand(params.brandId);
@@ -242,6 +252,7 @@ Error Handling:
           contract,
           expectedText: expectedTextOf(contract),
           qualityCheck: params.qualityCheck,
+          complexity: params.complexity,
           qualityRules: GLOBAL_DESIGN_RULE,
         });
 
@@ -271,6 +282,7 @@ Args:
 
   - delivery ("instant" | "batch", optional): as in studio_generate_graphics — "batch" is 50% cheaper, ready within 24 h, collect with studio_check_batches.
   - qualityCheck (boolean, optional, default true): vision quality gate, as in studio_generate_graphics.
+  - complexity ("low" | "medium" | "high", optional): as in studio_generate_graphics — GPT Image 2.6 only; "low" keeps edits closest to the source.
 
 Returns (JSON): same shape as studio_generate_graphics — { "batchId", "results": [{ "placement", "status", "image_url", "model_used", "est_cost_usd", "error_message" }] }.
 
@@ -305,6 +317,7 @@ Error Handling:
           .default("instant")
           .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
         qualityCheck: QUALITY_SCHEMA,
+        complexity: COMPLEXITY_SCHEMA,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -317,6 +330,7 @@ Error Handling:
       referenceImagePaths?: string[];
       delivery: "instant" | "batch";
       qualityCheck: boolean;
+      complexity?: Complexity;
     }) => {
       try {
         const placements = params.placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -364,6 +378,7 @@ Error Handling:
           delivery: params.delivery,
           expectedText: quotedText(params.prompt),
           qualityCheck: params.qualityCheck,
+          complexity: params.complexity,
         });
 
         return {
@@ -394,6 +409,7 @@ Args:
 
   - delivery ("instant" | "batch", optional): as in studio_generate_graphics — "batch" is 50% cheaper, ready within 24 h, collect with studio_check_batches.
   - qualityCheck (boolean, optional, default true): vision quality gate, as in studio_generate_graphics.
+  - complexity ("low" | "medium" | "high", optional): as in studio_generate_graphics — GPT Image 2.6 only; "low" keeps edits closest to the source.
 
 Returns (JSON): same shape as studio_generate_graphics — { "batchId", "results": [{ "placement", "status", "image_url", "model_used", "est_cost_usd", "error_message" }] }.
 
@@ -424,6 +440,7 @@ Error Handling:
           .default("instant")
           .describe('"instant" = normal price, images now. "batch" = provider Batch API, 50% cheaper, ready within 24 h — results come back "pending"; collect them with studio_check_batches.'),
         qualityCheck: QUALITY_SCHEMA,
+        complexity: COMPLEXITY_SCHEMA,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -436,6 +453,7 @@ Error Handling:
       brandId?: string;
       delivery: "instant" | "batch";
       qualityCheck: boolean;
+      complexity?: Complexity;
     }) => {
       try {
         const placements = params.placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -488,6 +506,7 @@ Error Handling:
           contract,
           expectedText: [],
           qualityCheck: params.qualityCheck,
+          complexity: params.complexity,
         });
 
         return {

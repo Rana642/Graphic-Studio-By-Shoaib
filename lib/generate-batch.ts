@@ -1,5 +1,5 @@
 import "server-only";
-import { generateImage, providerHasBatch, type Delivery, type GenerateImageResult, type Provider, type Tier } from "./image-providers";
+import { generateImage, providerHasBatch, type Complexity, type Delivery, type GenerateImageResult, type Provider, type Tier } from "./image-providers";
 import type { Placement } from "./placements";
 import { insertGeneration, uploadGeneratedImage, type Generation } from "./generations";
 import { submitBatchGeneration } from "./batch-jobs";
@@ -21,6 +21,9 @@ export type GenerationBatchInput = {
   /** "batch" = provider Batch API at half price; rows come back "pending"
    *  and complete later (see lib/batch-jobs.ts). Defaults to "instant". */
   delivery?: Delivery;
+  /** GPT Image 2.6 only: how much the model plans before drawing. Left out =
+   *  OpenAI's default (high); ignored by other models and by Batch delivery. */
+  complexity?: Complexity;
   /** The structured prompt `prompt` was rendered from (lib/prompt-contract.ts).
    *  A quality retry re-renders it with a FIX block; without one the fix is
    *  appended to the plain prompt. */
@@ -64,7 +67,13 @@ async function generateChecked(input: GenerationBatchInput, placement: Placement
       : input.contract
         ? renderContract({ ...input.contract, fix })
         : `${input.prompt}\n\nFIX FROM REVIEW (most important this time): ${fix}`;
-    const image = await generateImage(input.provider, { prompt, tier: input.tier, placement, referenceImages: input.referenceImages });
+    const image = await generateImage(input.provider, {
+      prompt,
+      tier: input.tier,
+      placement,
+      referenceImages: input.referenceImages,
+      complexity: input.provider === "gpt-image" ? input.complexity : undefined,
+    });
     const quality = check
       ? await judgeImage({
           image: { base64: image.imageBase64, mimeType: image.mimeType },

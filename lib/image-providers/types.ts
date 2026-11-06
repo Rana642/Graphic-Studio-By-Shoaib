@@ -26,6 +26,12 @@ export const providerOfModel = (model: string | null | undefined): Provider =>
  */
 export type Tier = "draft" | "standard" | "premium";
 
+/** How much the model plans before it draws (GPT Image 2.6 only; OpenAI
+ *  defaults to "high" when it's left out). Lower is faster and keeps edits
+ *  closer to the source; it has no separate fee. */
+export const COMPLEXITIES = ["low", "medium", "high"] as const;
+export type Complexity = (typeof COMPLEXITIES)[number];
+
 /** "instant" = the normal synchronous API call, image back in seconds.
  *  "batch" = the provider's Batch API: same model and quality, half the
  *  price, results within 24 hours (usually much sooner). */
@@ -44,6 +50,8 @@ export type GenerateImageInput = {
    *  instead of /v1/images/generations when this is non-empty, since only
    *  the edits endpoint accepts input images. */
   referenceImages?: { base64: string; mimeType: string }[];
+  /** Only GPT Image 2.6 instant calls use it; every other model ignores it. */
+  complexity?: Complexity;
 };
 
 export type GenerateImageResult = {

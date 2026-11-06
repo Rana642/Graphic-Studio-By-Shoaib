@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { PROVIDERS } from "@/lib/image-providers/types";
+import { COMPLEXITIES, PROVIDERS } from "@/lib/image-providers/types";
 import { getUser } from "@/lib/supabase/auth";
 import { getBrand } from "@/lib/brands";
 import { getPlacement } from "@/lib/placements";
@@ -16,6 +16,8 @@ const bodySchema = z.object({
   placementIds: z.array(z.string()).min(1).max(6),
   // "batch" = provider Batch API, half price, results within 24 h (see lib/batch-jobs.ts).
   delivery: z.enum(["instant", "batch"]).optional(),
+  // GPT Image 2.6 only; left out = OpenAI's default.
+  complexity: z.enum(COMPLEXITIES).optional(),
   // Vision quality gate (lib/quality-gate.ts) — on unless explicitly false.
   qualityCheck: z.boolean().optional(),
   brandId: z.string().uuid().optional(),
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { prompt, provider, tier, placementIds, brandId, referenceImages: adHocReferenceImages, delivery, qualityCheck } =
+    const { prompt, provider, tier, placementIds, brandId, referenceImages: adHocReferenceImages, delivery, complexity, qualityCheck } =
       parsed.data;
 
     const placements = placementIds.map(getPlacement).filter((p) => p !== undefined);
@@ -68,6 +70,7 @@ export async function POST(request: Request) {
       placements,
       referenceImages,
       delivery,
+      complexity,
       // The free prompt stays the user's own words; the gate checks the
       // words they put in quotes.
       expectedText: quotedText(prompt),

@@ -4,8 +4,8 @@ import { nanoBananaProvider } from "./nanoBanana";
 import { gptImageProvider } from "./gptImage";
 import { fluxProvider } from "./flux";
 
-export type { Provider, Tier, Delivery, GenerateImageInput, GenerateImageResult } from "./types";
-export { BATCH_DISCOUNT, PROVIDERS, PROVIDER_LABEL, providerHasBatch, providerOfModel } from "./types";
+export type { Provider, Tier, Delivery, Complexity, GenerateImageInput, GenerateImageResult } from "./types";
+export { BATCH_DISCOUNT, COMPLEXITIES, PROVIDERS, PROVIDER_LABEL, providerHasBatch, providerOfModel } from "./types";
 
 const providers = {
   "nano-banana": nanoBananaProvider,

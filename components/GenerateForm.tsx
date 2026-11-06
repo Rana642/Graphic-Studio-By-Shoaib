@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PLACEMENTS } from "@/lib/placements";
 import GenerationResults, { type ResultRow } from "./GenerationResults";
 import DeliveryChoice, { deliveryMultiplier, type Delivery } from "./DeliveryChoice";
+import ComplexityChoice, { type ComplexityValue } from "./ComplexityChoice";
 import { PROVIDERS, PROVIDER_LABEL, providerHasBatch, type Provider } from "@/lib/image-providers/types";
 
 type ApiResponse = {
@@ -19,6 +20,7 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
   const [provider, setProvider] = useState<Provider>("nano-banana");
   const [tier, setTier] = useState<"draft" | "standard" | "premium">("standard");
   const [delivery, setDelivery] = useState<Delivery>("instant");
+  const [complexity, setComplexity] = useState<ComplexityValue>("");
   const pickProvider = (p: Provider) => {
     setProvider(p);
     if (!providerHasBatch(p)) setDelivery("instant");
@@ -45,7 +47,7 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId, offer, provider, tier, placementIds, delivery, qualityCheck }),
+        body: JSON.stringify({ brandId, offer, provider, tier, placementIds, delivery, qualityCheck, ...(complexity ? { complexity } : {}) }),
       });
       const json: ApiResponse = await res.json();
       if (!res.ok) {
@@ -126,6 +128,8 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
         </div>
 
         <DeliveryChoice value={delivery} onChange={setDelivery} batchAvailable={providerHasBatch(provider)} />
+
+        {provider === "gpt-image" && delivery === "instant" && <ComplexityChoice value={complexity} onChange={setComplexity} />}
 
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={qualityCheck} onChange={(e) => setQualityCheck(e.target.checked)} />

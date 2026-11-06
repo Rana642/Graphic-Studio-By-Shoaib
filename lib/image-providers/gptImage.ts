@@ -88,6 +88,7 @@ export const gptImageProvider: ImageProviderClient = {
     if (!API_KEY) throw new Error("OPENAI_API_KEY is not configured.");
 
     const { model, quality, estCostUsd } = INSTANT_CONFIG[input.tier];
+    const complexity = input.complexity; // every instant model is 2.6, which takes it
     const authHeader = { Authorization: `Bearer ${API_KEY}` };
 
     let imageBase64: string;
@@ -101,6 +102,7 @@ export const gptImageProvider: ImageProviderClient = {
       form.append("prompt", input.prompt);
       form.append("size", input.placement.openaiSize);
       if (quality) form.append("quality", quality);
+      if (complexity) form.append("complexity", complexity);
       input.referenceImages.forEach((ref, i) => {
         const buffer = Buffer.from(ref.base64, "base64");
         const blob = new Blob([buffer], { type: ref.mimeType });
@@ -123,6 +125,7 @@ export const gptImageProvider: ImageProviderClient = {
           prompt: input.prompt,
           size: input.placement.openaiSize,
           ...(quality ? { quality } : {}),
+          ...(complexity ? { complexity } : {}),
         }),
       });
       imageBase64 = await extractImage(res, model);
