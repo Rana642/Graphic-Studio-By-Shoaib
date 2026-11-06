@@ -12,10 +12,26 @@ import { shrinkReferenceForBatch } from "./batch-utils";
  * public pricing at the same date — re-check OpenAI's pricing page before
  * relying on them for real budgeting.
  */
-const CONFIG_BY_TIER: Record<
+type TierConfig = Record<
   GenerateImageInput["tier"],
   { model: string; quality?: "low" | "medium" | "high" | "xhigh" | "max"; estCostUsd: number }
-> = {
+>;
+
+/**
+ * Instant calls use GPT Image 2.6 (2026-11-04; both ids are on Shoaib's key).
+ * The estCostUsd values are the 2.5 ballparks carried over: 2.6 uses the same
+ * token rates, but sources disagree on the per-image price at low quality, so
+ * they stay until a real run shows the billed cost.
+ */
+const INSTANT_CONFIG: TierConfig = {
+  premium: { model: "gpt-image-2.6-sunburst", quality: "max", estCostUsd: 0.21 },
+  standard: { model: "gpt-image-2.6-sunburst", quality: "high", estCostUsd: 0.053 },
+  draft: { model: "gpt-image-2.6-flare", quality: "low", estCostUsd: 0.006 },
+};
+
+/** The 2.6 models don't support OpenAI's Batch API (their model pages list
+ *  v1/batch as "Not supported"), so Batch delivery stays on 2.5. */
+const BATCH_CONFIG: TierConfig = {
   premium: { model: "gpt-image-2.5-sunburst", quality: "max", estCostUsd: 0.21 },
   standard: { model: "gpt-image-2.5-sunburst", quality: "high", estCostUsd: 0.053 },
   draft: { model: "gpt-image-2.5-flare", quality: "low", estCostUsd: 0.006 },
@@ -71,7 +87,7 @@ export const gptImageProvider: ImageProviderClient = {
   async generate(input: GenerateImageInput): Promise<GenerateImageResult> {
     if (!API_KEY) throw new Error("OPENAI_API_KEY is not configured.");
 
-    const { model, quality, estCostUsd } = CONFIG_BY_TIER[input.tier];
+    const { model, quality, estCostUsd } = INSTANT_CONFIG[input.tier];
     const authHeader = { Authorization: `Bearer ${API_KEY}` };
 
     let imageBase64: string;
@@ -121,7 +137,7 @@ export const gptImageProvider: ImageProviderClient = {
    *  JSON lines can't carry multipart files). */
   async submitBatch(input) {
     if (!API_KEY) throw new Error("OPENAI_API_KEY is not configured.");
-    const { model, quality, estCostUsd } = CONFIG_BY_TIER[input.tier];
+    const { model, quality, estCostUsd } = BATCH_CONFIG[input.tier];
     const refs = await Promise.all(input.referenceImages.map(shrinkReferenceForBatch));
     const endpoint = refs.length > 0 ? "/v1/images/edits" : "/v1/images/generations";
 

@@ -19,7 +19,7 @@ export const providerOfModel = (model: string | null | undefined): Provider =>
   model?.startsWith("gemini") ? "nano-banana" : model?.startsWith("flux") ? "flux" : "gpt-image";
 
 /**
- * "premium" = best-quality model (Nano Banana Pro / GPT Image 2.5 Sunburst max) —
+ * "premium" = best-quality model (Nano Banana Pro / GPT Image 2.6 Sunburst max; Batch stays on 2.5) —
  * "draft" = cheapest model, for concepting before spending on a final export.
  * Matches the hybrid strategy from Shoaib's own research: cheap draft to
  * approve a concept, premium for the real export.
