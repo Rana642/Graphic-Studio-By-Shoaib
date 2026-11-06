@@ -263,7 +263,7 @@ export async function composeLayered(input: {
     version: 1,
     canvas: { width, height },
     preset: layout.preset,
-    brand: { name: brand.name, primary: brand.primary_hex, accent },
+    brand: { name: brand.name, primary: brand.primary_hex, accent, font_family: brand.font_family ?? null },
     fonts: { heading, body },
     content,
     zones: layout satisfies LayoutZones,

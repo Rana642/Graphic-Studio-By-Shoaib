@@ -26,6 +26,8 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
     if (!providerHasBatch(p)) setDelivery("instant");
   };
   const [qualityCheck, setQualityCheck] = useState(true);
+  // Exact text: the AI draws a text-free background, the words are composed on top (always "Now" delivery).
+  const [exactText, setExactText] = useState(true);
   const [placementIds, setPlacementIds] = useState<string[]>(REGULAR_TRACK_IDS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId, offer, provider, tier, placementIds, delivery, qualityCheck, ...(complexity ? { complexity } : {}) }),
+        body: JSON.stringify({ brandId, offer, provider, tier, placementIds, delivery: exactText ? "instant" : delivery, qualityCheck, exactText, ...(complexity ? { complexity } : {}) }),
       });
       const json: ApiResponse = await res.json();
       if (!res.ok) {
@@ -66,6 +68,10 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
     placementIds.length *
     { draft: 0.02, standard: 0.045, premium: 0.15 }[tier] *
     deliveryMultiplier(delivery);
+
+  const onEdited = (resultId: string, row: ResultRow) => {
+    setResponse((prev) => (prev?.results ? { ...prev, results: prev.results.map((r) => (r.id === resultId ? { ...r, ...row } : r)) } : prev));
+  };
 
   const onEnhanced = (resultId: string, upscaledImageUrl: string) => {
     setResponse((prev) =>
@@ -127,7 +133,17 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
           </div>
         </div>
 
-        <DeliveryChoice value={delivery} onChange={setDelivery} batchAvailable={providerHasBatch(provider)} />
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={exactText} onChange={(e) => { setExactText(e.target.checked); if (e.target.checked) setDelivery("instant"); }} />
+          <span>
+            <span className="font-medium">Exact text (recommended)</span>
+            <span className="block text-xs text-muted">
+              The AI draws only the background; your words, button and logo are added on top in real fonts, so the spelling is always right and you can change the text later for free. &ldquo;Now&rdquo; delivery only.
+            </span>
+          </span>
+        </label>
+
+        <DeliveryChoice value={delivery} onChange={setDelivery} batchAvailable={providerHasBatch(provider) && !exactText} />
 
         {provider === "gpt-image" && delivery === "instant" && <ComplexityChoice value={complexity} onChange={setComplexity} />}
 
@@ -187,7 +203,7 @@ export default function GenerateForm({ brandId }: { brandId: string }) {
               {response.copy.hook} · {response.copy.cta}
             </p>
           )}
-          <GenerationResults results={response.results} onEnhanced={onEnhanced} />
+          <GenerationResults results={response.results} onEnhanced={onEnhanced} onEdited={onEdited} />
         </div>
       )}
     </div>

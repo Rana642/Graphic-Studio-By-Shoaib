@@ -10,6 +10,7 @@ import { loadBrandLogo, loadReferenceImagesAsBase64 } from "@/lib/references";
 import { buildImageContract } from "@/lib/prompt";
 import { expectedTextOf, GLOBAL_DESIGN_RULE, renderContract } from "@/lib/prompt-contract";
 import { runGenerationBatch } from "@/lib/generate-batch";
+import { runExactTextGeneration } from "@/lib/layered/generate";
 
 const bodySchema = z.object({
   brandId: z.string().uuid(),
@@ -21,6 +22,8 @@ const bodySchema = z.object({
   delivery: z.enum(["instant", "batch"]).optional(),
   // GPT Image 2.6 only; left out = OpenAI's default.
   complexity: z.enum(COMPLEXITIES).optional(),
+  // "Exact text": the AI draws a text-free background and the words are composed on top (lib/layered).
+  exactText: z.boolean().optional(),
   // Vision quality gate (lib/quality-gate.ts) — on unless explicitly false.
   qualityCheck: z.boolean().optional(),
 });
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-    const { brandId, offer, provider, tier, placementIds, delivery, complexity, qualityCheck } = parsed.data;
+    const { brandId, offer, provider, tier, placementIds, delivery, complexity, qualityCheck, exactText } = parsed.data;
 
     const brand = await getBrand(brandId);
     if (!brand) return NextResponse.json({ error: "Brand not found." }, { status: 404 });
@@ -60,6 +63,20 @@ export async function POST(request: Request) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       return NextResponse.json({ error: `Copywriting failed: ${message}` }, { status: 502 });
+    }
+
+    if (exactText) {
+      if (delivery === "batch") return NextResponse.json({ error: "Exact text needs \"Now\" delivery: the words are added right after the background is drawn." }, { status: 400 });
+      const { batchId, results } = await runExactTextGeneration({
+        brandId,
+        offer,
+        copy,
+        provider: provider as Provider,
+        tier: tier as Tier,
+        placements,
+        complexity,
+      });
+      return NextResponse.json({ batchId, copy, results });
     }
 
     const colors = [brand.primary_hex, brand.secondary_hex, brand.accent_hex].filter(

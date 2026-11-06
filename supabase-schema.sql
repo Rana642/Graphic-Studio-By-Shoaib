@@ -190,3 +190,9 @@ create index if not exists generations_track_idx on generations(track);
 
 -- Markup edit (2026-11-07): history rows made by the markup-guided edit.
 alter type generation_track add value if not exists 'markup_edit';
+
+-- Exact-text designs (2026-11-07): the AI draws only a text-free background; the words are composed on top.
+-- Run these three lines in the SQL Editor (the enum line on its own first if the editor complains).
+alter type generation_track add value if not exists 'layered';
+alter table generations add column if not exists background_url text;
+alter table generations add column if not exists layout_json jsonb;

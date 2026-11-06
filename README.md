@@ -88,9 +88,16 @@ separate one.
       one that reads best), headline fitted to at most two lines at a readable
       size, text colour chosen from the real pixels behind it (WCAG contrast
       reported). MCP: `studio_layered_compose` (writes the PNG plus a
-      `.layout.json`). Not yet (phase 2/3): the "Exact text" tick on the
-      Generate form, live preview, saving to history, one background for
-      several sizes, contact strip.
+      `.layout.json`).
+- [x] Exact text, phase 2 (2026-11-07) — the brand Generate form has an
+      "Exact text (recommended)" tick (on by default, "Now" delivery only):
+      the AI draws a text-free background, the words are composed on top, and
+      the row (track `layered`) keeps the background and the layout recipe.
+      "Edit text (free)" on a result changes the words with no AI call
+      (`/api/generate/recompose`). MCP: `studio_generate_exact_text`,
+      `studio_recompose_text`. Needs the "Exact text" SQL at the end of
+      `supabase-schema.sql`. Not yet (phase 3): one background for several
+      sizes, contact strip, a live as-you-type preview.
 - [x] Video Studio checks + formats (2026-11-07, ideas taken from reading
       OpenMontage / editonny, nothing installed) — every render is now
       verified with ffprobe (video + audio present, audio length matches the

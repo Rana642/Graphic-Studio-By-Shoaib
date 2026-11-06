@@ -6,7 +6,7 @@ export type Generation = {
   id: string;
   brand_id: string | null;
   batch_id: string;
-  track: "creative" | "asset_locked" | "subject_edit" | "photoshoot" | "markup_edit";
+  track: "creative" | "asset_locked" | "subject_edit" | "photoshoot" | "markup_edit" | "layered";
   placement: string;
   model_used: string | null;
   prompt_used: string | null;
@@ -32,6 +32,9 @@ export type Generation = {
   upscale_cost_usd: number | null;
   upscaled_at: string | null;
   template_id: string | null;
+  /** Exact-text designs (track "layered"): the text-free background and the recipe to recompose it. */
+  background_url?: string | null;
+  layout_json?: Record<string, unknown> | null;
   created_at: string;
 };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import EnhanceButton from "./EnhanceButton";
 
@@ -14,6 +15,8 @@ export type ResultRow = {
   quality_score?: number | null;
   quality_notes?: string | null;
   quality_attempts?: number | null;
+  /** Exact-text designs: the saved recipe; its presence enables "Edit text". */
+  layout_json?: { content?: { label?: string; hook?: string; cta?: string } } | null;
 };
 
 /** The vision quality gate's verdict under an image (lib/quality-gate.ts). */
@@ -29,16 +32,78 @@ export function QualityBadge({ r }: { r: ResultRow }) {
   );
 }
 
+/** Exact-text designs: change the words without touching the AI background (free, instant). */
+function EditText({ row, onEdited }: { row: ResultRow; onEdited: (id: string, row: ResultRow) => void }) {
+  const saved = row.layout_json?.content ?? {};
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState(saved.label ?? "");
+  const [hook, setHook] = useState(saved.hook ?? "");
+  const [cta, setCta] = useState(saved.cta ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const apply = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/generate/recompose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generationId: row.id, label, hook, cta }),
+      });
+      const json: { result?: ResultRow; error?: string } = await res.json();
+      if (!res.ok || !json.result) setError(json.error || "Couldn't change the text.");
+      else {
+        onEdited(row.id, json.result);
+        setOpen(false);
+      }
+    } catch {
+      setError("Network error — check the dev server is running.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open)
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="mt-2 text-xs text-accent hover:underline">
+        Edit text (free)
+      </button>
+    );
+
+  const field = "w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm";
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-border bg-background p-3">
+      <input className={field} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Badge label" maxLength={60} />
+      <input className={field} value={hook} onChange={(e) => setHook(e.target.value)} placeholder="Headline" maxLength={200} />
+      <input className={field} value={cta} onChange={(e) => setCta(e.target.value)} placeholder="Button text" maxLength={60} />
+      {error && <p className="text-xs text-danger">{error}</p>}
+      <div className="flex gap-2 text-sm">
+        <button type="button" onClick={apply} disabled={busy || !hook.trim()} className="rounded-lg bg-accent px-3 py-1.5 text-accent-foreground disabled:opacity-60">
+          {busy ? "Applying…" : "Apply"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} disabled={busy} className="rounded-lg border border-border px-3 py-1.5">
+          Cancel
+        </button>
+      </div>
+      <p className="text-xs text-muted">Same background, new words. No AI call, no cost.</p>
+    </div>
+  );
+}
+
 /** Result grid shared by the generate forms and the Batches page: a finished
  *  image (download + enhance), a batch image still in the provider's queue,
  *  or a failure with its reason. */
 export default function GenerationResults({
   results,
   onEnhanced,
+  onEdited,
   showBatchesLink = true,
 }: {
   results: ResultRow[];
   onEnhanced: (resultId: string, upscaledImageUrl: string) => void;
+  /** Given only where a text edit can update the list (the generate forms). */
+  onEdited?: (resultId: string, row: ResultRow) => void;
   showBatchesLink?: boolean;
 }) {
   const pending = results.filter((r) => r.status === "pending").length;
@@ -69,6 +134,7 @@ export default function GenerationResults({
                   </a>
                 </div>
                 <QualityBadge r={r} />
+                {onEdited && r.layout_json && !r.upscaled_image_url ? <EditText key={r.image_url} row={r} onEdited={onEdited} /> : null}
                 {r.upscaled_image_url ? (
                   <p className="mt-2 text-xs text-muted">✨ Enhanced with Topaz</p>
                 ) : (
